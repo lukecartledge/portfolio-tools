@@ -7,7 +7,8 @@ import type { Config } from './config.js'
 import { errorMessage } from './utils.js'
 
 export function startWatcher(config: Config) {
-  const globPattern = `${config.watchDir}/**/*.{jpg,jpeg,tif,tiff,png,webp}`
+  const extensions = [...IMAGE_EXTENSIONS].map((e) => e.slice(1)).join(',')
+  const globPattern = `${config.watchDir}/**/*.{${extensions}}`
 
   console.log(`Watching: ${config.watchDir}`)
 
