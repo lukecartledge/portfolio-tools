@@ -6,7 +6,14 @@ import type { Config } from '../config.js'
 import type { PhotoWithMetadata, ApiResponse, UserEdits } from '../types.js'
 import { mergeMetadata } from '../types.js'
 import { IMAGE_EXTENSIONS } from '../config.js'
-import { sidecarPathFor, readSidecar, writeSidecar, hasSidecar, patchSidecar } from '../sidecar.js'
+import {
+  sidecarPathFor,
+  readSidecar,
+  writeSidecar,
+  hasSidecar,
+  patchSidecar,
+  markPublished,
+} from '../sidecar.js'
 import { publishPhoto } from '../publisher.js'
 import { errorMessage } from '../utils.js'
 
@@ -88,12 +95,7 @@ export function createApi(config: Config): Hono {
       }
 
       const result = await publishPhoto(photoPath, sidecar, config)
-
-      sidecar.status = 'published'
-      sidecar.contentful.assetId = result.assetId
-      sidecar.contentful.entryId = result.entryId
-      sidecar.contentful.publishedAt = new Date().toISOString()
-      await writeSidecar(sidecarPath, sidecar)
+      await markPublished(sidecarPath, sidecar, result)
 
       return c.json<ApiResponse<typeof result>>({ ok: true, data: result })
     } catch (error) {

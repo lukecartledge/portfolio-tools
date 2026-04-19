@@ -7,6 +7,7 @@ import {
   readSidecar,
   writeSidecar,
   createEmptySidecar,
+  markPublished,
 } from './sidecar.js'
 import { analyzePhoto } from './analyzer.js'
 import { publishPhoto } from './publisher.js'
@@ -126,11 +127,7 @@ async function runPublish() {
 
       try {
         const result = await publishPhoto(filePath, sidecar, config)
-        sidecar.status = 'published'
-        sidecar.contentful.assetId = result.assetId
-        sidecar.contentful.entryId = result.entryId
-        sidecar.contentful.publishedAt = new Date().toISOString()
-        await writeSidecar(sidecarPath, sidecar)
+        await markPublished(sidecarPath, sidecar, result)
         console.log(`  Published: entry ${result.entryId}`)
         published++
       } catch (error) {

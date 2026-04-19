@@ -45,6 +45,18 @@ export async function patchSidecar(
   return sidecar
 }
 
+export async function markPublished(
+  sidecarPath: string,
+  sidecar: Sidecar,
+  result: { assetId: string; entryId: string },
+): Promise<void> {
+  sidecar.status = 'published'
+  sidecar.contentful.assetId = result.assetId
+  sidecar.contentful.entryId = result.entryId
+  sidecar.contentful.publishedAt = new Date().toISOString()
+  await writeSidecar(sidecarPath, sidecar)
+}
+
 export function createEmptySidecar(source: string, collection: string): Sidecar {
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
