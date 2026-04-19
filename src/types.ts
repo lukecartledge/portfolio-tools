@@ -1,3 +1,5 @@
+export const CURRENT_SCHEMA_VERSION = 1
+
 export type SidecarStatus = 'pending' | 'approved' | 'published'
 
 export interface ExifData {
@@ -20,6 +22,13 @@ export interface AiMetadata {
   generatedAt: string
 }
 
+/** Human corrections to AI-generated metadata */
+export interface UserEdits {
+  title?: string
+  caption?: string
+  tags?: string[]
+}
+
 /** Contentful publishing state */
 export interface ContentfulState {
   assetId: string | null
@@ -29,11 +38,13 @@ export interface ContentfulState {
 
 /** Sidecar JSON file structure — lives alongside each photo */
 export interface Sidecar {
+  schemaVersion: number
   status: SidecarStatus
   source: string
   collection: string
   exif: ExifData
   ai: AiMetadata
+  userEdits?: UserEdits
   contentful: ContentfulState
 }
 
@@ -49,9 +60,18 @@ export interface PhotoFile {
   sidecarPath: string
 }
 
+/** Effective metadata after merging AI output with user edits */
+export interface EffectiveMetadata {
+  title: string
+  caption: string
+  tags: string[]
+}
+
 /** Photo with full metadata (sidecar loaded) */
 export interface PhotoWithMetadata extends PhotoFile {
   sidecar: Sidecar
+  /** Merged AI + userEdits for display/publishing */
+  effective: EffectiveMetadata
   /** Base64 thumbnail for UI display */
   thumbnail?: string
 }
@@ -81,4 +101,13 @@ export interface ContentfulPhotoFields {
   collections?: Array<{ sys: { type: 'Link'; linkType: 'Entry'; id: string } }>
   featured?: boolean
   displayOrder?: number
+}
+
+/** Merge AI metadata with user edits (user edits take precedence) */
+export function mergeMetadata(ai: AiMetadata, userEdits?: UserEdits): EffectiveMetadata {
+  return {
+    title: userEdits?.title ?? ai.title,
+    caption: userEdits?.caption ?? ai.caption,
+    tags: userEdits?.tags ?? ai.tags,
+  }
 }

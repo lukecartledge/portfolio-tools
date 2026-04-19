@@ -4,6 +4,7 @@ import contentful from 'contentful-management'
 import slugify from 'slugify'
 import type { Config } from './config.js'
 import type { Sidecar } from './types.js'
+import { mergeMetadata } from './types.js'
 import { PHOTO_CONTENT_TYPE, COLLECTION_CONTENT_TYPE } from './config.js'
 
 const CONTENTFUL_RATE_LIMIT_DELAY_MS = 150
@@ -29,6 +30,7 @@ export async function publishPhoto(
   config: Config,
 ): Promise<PublishResult> {
   const env = await getCmaEnvironment(config)
+  const effective = mergeMetadata(sidecar.ai, sidecar.userEdits)
 
   const fileName = basename(filePath)
   const contentType = mimeTypeFor(extname(filePath))
@@ -38,7 +40,7 @@ export async function publishPhoto(
 
   const asset = await env.createAsset({
     fields: {
-      title: { 'en-US': sidecar.ai.title },
+      title: { 'en-US': effective.title },
       file: {
         'en-US': {
           contentType,
@@ -62,17 +64,17 @@ export async function publishPhoto(
 
   const collectionId = await resolveCollection(env, sidecar.collection)
 
-  const slug = slugify(sidecar.ai.title, { lower: true, strict: true })
+  const slug = slugify(effective.title, { lower: true, strict: true })
   const entry = await env.createEntry(PHOTO_CONTENT_TYPE, {
     fields: {
-      title: { 'en-US': sidecar.ai.title },
+      title: { 'en-US': effective.title },
       slug: { 'en-US': slug },
       image: {
         'en-US': {
           sys: { type: 'Link', linkType: 'Asset', id: latestAsset.sys.id },
         },
       },
-      caption: sidecar.ai.caption ? { 'en-US': sidecar.ai.caption } : undefined,
+      caption: effective.caption ? { 'en-US': effective.caption } : undefined,
       dateTaken: sidecar.exif.dateTaken ? { 'en-US': sidecar.exif.dateTaken } : undefined,
       camera: sidecar.exif.camera ? { 'en-US': sidecar.exif.camera } : undefined,
       lens: sidecar.exif.lens ? { 'en-US': sidecar.exif.lens } : undefined,
@@ -80,7 +82,7 @@ export async function publishPhoto(
       shutterSpeed: sidecar.exif.shutterSpeed ? { 'en-US': sidecar.exif.shutterSpeed } : undefined,
       iso: sidecar.exif.iso ? { 'en-US': sidecar.exif.iso } : undefined,
       focalLength: sidecar.exif.focalLength ? { 'en-US': sidecar.exif.focalLength } : undefined,
-      tags: sidecar.ai.tags.length > 0 ? { 'en-US': sidecar.ai.tags } : undefined,
+      tags: effective.tags.length > 0 ? { 'en-US': effective.tags } : undefined,
       ...(collectionId
         ? {
             collections: {
