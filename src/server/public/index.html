@@ -295,6 +295,38 @@
         color: #999;
         margin-bottom: 2px;
       }
+
+      .tags-input {
+        width: 100%;
+        font-size: 11px;
+        border: none;
+        border-bottom: 1px solid transparent;
+        padding: 4px 0;
+        background: transparent;
+        color: #555;
+        font-family: inherit;
+        margin-top: 4px;
+      }
+
+      .tags-input:hover {
+        border-bottom-color: #ddd;
+      }
+      .tags-input:focus {
+        outline: none;
+        border-bottom-color: #1a1a1a;
+      }
+
+      .save-indicator {
+        font-size: 11px;
+        color: #10b981;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        margin-left: 8px;
+      }
+
+      .save-indicator.visible {
+        opacity: 1;
+      }
     </style>
   </head>
   <body>
@@ -393,23 +425,30 @@
           <div class="card" data-collection="${photo.collection}" data-filename="${s.source}">
             <img class="card-image"
                  src="/api/thumbnail/${photo.collection}/${s.source}"
-                 alt="${s.ai.title}"
+                 alt="${photo.effective.title}"
                  loading="lazy">
             <div class="card-body">
               <div class="collection-label">${photo.collection}</div>
               <div class="card-header">
                 <div class="card-title">
-                  <input type="text" value="${escHtml(s.ai.title)}"
+                  <input type="text" value="${escHtml(photo.effective.title)}"
                          onchange="updateField('${photo.collection}', '${s.source}', 'title', this.value)">
                 </div>
+                <span class="save-indicator">Saved</span>
                 <span class="badge badge-${s.status}">${s.status}</span>
               </div>
               <div class="card-caption">
                 <textarea onchange="updateField('${photo.collection}', '${s.source}', 'caption', this.value)"
-                >${escHtml(s.ai.caption)}</textarea>
+                >${escHtml(photo.effective.caption)}</textarea>
               </div>
               <div class="card-tags">
-                ${s.ai.tags.map((t) => `<span class="tag">${escHtml(t)}</span>`).join('')}
+                <div class="card-tags-chips">
+                  ${photo.effective.tags.map((t) => `<span class="tag">${escHtml(t)}</span>`).join('')}
+                </div>
+                <input type="text" class="tags-input"
+                       value="${escHtml(photo.effective.tags.join(', '))}"
+                       placeholder="Add tags (comma-separated)"
+                       onchange="updateField('${photo.collection}', '${s.source}', 'tags', this.value)">
               </div>
               ${
                 exifParts.length > 0
@@ -460,12 +499,60 @@
 
       async function updateField(collection, filename, field, value) {
         const body = {}
-        body[field] = field === 'tags' ? value.split(',').map((t) => t.trim()) : value
-        await fetch(`/api/photos/${collection}/${filename}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        })
+        if (field === 'tags') {
+          body[field] = value
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean)
+        } else {
+          body[field] = value
+        }
+
+        try {
+          const res = await fetch(`/api/photos/${collection}/${filename}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+          const json = await res.json()
+
+          if (json.ok) {
+            const photo = photos.find(
+              (p) => p.collection === collection && p.sidecar.source === filename,
+            )
+            if (photo) {
+              photo.effective[field] = body[field]
+
+              if (field === 'tags') {
+                const card = document.querySelector(
+                  `.card[data-collection="${collection}"][data-filename="${filename}"]`,
+                )
+                if (card) {
+                  const chips = card.querySelector('.card-tags-chips')
+                  if (chips) {
+                    chips.innerHTML = body[field]
+                      .map((t) => `<span class="tag">${escHtml(t)}</span>`)
+                      .join('')
+                  }
+                }
+              }
+            }
+            showSaveIndicator(collection, filename)
+          }
+        } catch (e) {
+          console.error('Failed to save:', e)
+        }
+      }
+
+      function showSaveIndicator(collection, filename) {
+        const card = document.querySelector(
+          `.card[data-collection="${collection}"][data-filename="${filename}"]`,
+        )
+        if (!card) return
+        const indicator = card.querySelector('.save-indicator')
+        if (!indicator) return
+        indicator.classList.add('visible')
+        setTimeout(() => indicator.classList.remove('visible'), 1500)
       }
 
       async function approvePhoto(collection, filename) {
