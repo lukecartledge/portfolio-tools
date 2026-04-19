@@ -16,53 +16,56 @@ vi.mock('slugify', () => ({
 }))
 
 const {
-  mockCreateUpload,
-  mockCreateAsset,
-  mockGetAsset,
-  mockCreateEntry,
-  mockGetEntries,
-  mockProcessForAllLocales,
+  mockUploadCreate,
+  mockAssetCreate,
+  mockAssetGet,
   mockAssetPublish,
+  mockAssetProcessForAllLocales,
+  mockEntryCreate,
+  mockEntryGetMany,
   mockEntryPublish,
-  mockEnvironment,
+  mockClient,
 } = vi.hoisted(() => {
-  const mockAssetPublish = vi.fn().mockResolvedValue({})
-  const mockEntryPublish = vi.fn().mockResolvedValue({})
-  const mockProcessForAllLocales = vi.fn()
-  const mockCreateUpload = vi.fn()
-  const mockCreateAsset = vi.fn()
-  const mockGetAsset = vi.fn()
-  const mockCreateEntry = vi.fn()
-  const mockGetEntries = vi.fn()
+  const mockUploadCreate = vi.fn()
+  const mockAssetCreate = vi.fn()
+  const mockAssetGet = vi.fn()
+  const mockAssetPublish = vi.fn()
+  const mockAssetProcessForAllLocales = vi.fn()
+  const mockEntryCreate = vi.fn()
+  const mockEntryGetMany = vi.fn()
+  const mockEntryPublish = vi.fn()
 
-  const mockEnvironment = {
-    createUpload: mockCreateUpload,
-    createAsset: mockCreateAsset,
-    getAsset: mockGetAsset,
-    createEntry: mockCreateEntry,
-    getEntries: mockGetEntries,
+  const mockClient = {
+    upload: { create: mockUploadCreate },
+    asset: {
+      create: mockAssetCreate,
+      get: mockAssetGet,
+      publish: mockAssetPublish,
+      processForAllLocales: mockAssetProcessForAllLocales,
+    },
+    entry: {
+      create: mockEntryCreate,
+      getMany: mockEntryGetMany,
+      publish: mockEntryPublish,
+    },
   }
 
   return {
-    mockCreateUpload,
-    mockCreateAsset,
-    mockGetAsset,
-    mockCreateEntry,
-    mockGetEntries,
-    mockProcessForAllLocales,
+    mockUploadCreate,
+    mockAssetCreate,
+    mockAssetGet,
     mockAssetPublish,
+    mockAssetProcessForAllLocales,
+    mockEntryCreate,
+    mockEntryGetMany,
     mockEntryPublish,
-    mockEnvironment,
+    mockClient,
   }
 })
 
 vi.mock('contentful-management', () => ({
   default: {
-    createClient: vi.fn(() => ({
-      getSpace: vi.fn().mockResolvedValue({
-        getEnvironment: vi.fn().mockResolvedValue(mockEnvironment),
-      }),
-    })),
+    createClient: vi.fn(() => mockClient),
   },
 }))
 
@@ -114,24 +117,34 @@ function makeSidecar(overrides?: Partial<Sidecar>): Sidecar {
 }
 
 function setupPublishMocks() {
-  mockCreateUpload.mockResolvedValue({ sys: { id: 'upload-1' } })
+  mockUploadCreate.mockResolvedValue({ sys: { id: 'upload-1' } })
 
-  mockCreateAsset.mockResolvedValue({
+  mockAssetCreate.mockResolvedValue({
     sys: { id: 'asset-1' },
-    processForAllLocales: mockProcessForAllLocales.mockResolvedValue({
-      sys: { id: 'asset-1' },
-    }),
+    fields: {},
   })
 
-  mockGetAsset.mockResolvedValue({
+  mockAssetProcessForAllLocales.mockResolvedValue({
     sys: { id: 'asset-1' },
-    fields: { file: { 'en-US': { url: '//images.ctfassets.net/asset-1.jpg' } } },
-    publish: mockAssetPublish,
   })
 
-  mockCreateEntry.mockResolvedValue({
+  mockAssetGet.mockResolvedValue({
+    sys: { id: 'asset-1' },
+    fields: {
+      file: { 'en-GB': { url: '//images.ctfassets.net/asset-1.jpg' } },
+    },
+  })
+
+  mockAssetPublish.mockResolvedValue({
+    sys: { id: 'asset-1' },
+  })
+
+  mockEntryCreate.mockResolvedValue({
     sys: { id: 'entry-1' },
-    publish: mockEntryPublish,
+  })
+
+  mockEntryPublish.mockResolvedValue({
+    sys: { id: 'entry-1' },
   })
 }
 
@@ -142,45 +155,45 @@ beforeEach(() => {
 describe('publishPhoto', () => {
   it('uploads file and creates published asset and entry', async () => {
     setupPublishMocks()
-    mockGetEntries.mockResolvedValue({ items: [] })
+    mockEntryGetMany.mockResolvedValue({ items: [] })
 
     const result = await publishPhoto('/photos/iceland/aurora.jpg', makeSidecar(), makeConfig())
 
     expect(result).toEqual({ assetId: 'asset-1', entryId: 'entry-1' })
-    expect(mockCreateUpload).toHaveBeenCalledTimes(1)
-    expect(mockCreateAsset).toHaveBeenCalledTimes(1)
+    expect(mockUploadCreate).toHaveBeenCalledTimes(1)
+    expect(mockAssetCreate).toHaveBeenCalledTimes(1)
     expect(mockAssetPublish).toHaveBeenCalledTimes(1)
     expect(mockEntryPublish).toHaveBeenCalledTimes(1)
   })
 
   it('sets correct asset fields from file path', async () => {
     setupPublishMocks()
-    mockGetEntries.mockResolvedValue({ items: [] })
+    mockEntryGetMany.mockResolvedValue({ items: [] })
 
     await publishPhoto('/photos/iceland/aurora.jpg', makeSidecar(), makeConfig())
 
-    const assetFields = mockCreateAsset.mock.calls[0]?.[0].fields
-    expect(assetFields.title['en-US']).toBe('Northern Lights')
-    expect(assetFields.file['en-US'].contentType).toBe('image/jpeg')
-    expect(assetFields.file['en-US'].fileName).toBe('aurora.jpg')
-    expect(assetFields.file['en-US'].uploadFrom.sys.id).toBe('upload-1')
+    const assetFields = mockAssetCreate.mock.calls[0]?.[1].fields
+    expect(assetFields.title['en-GB']).toBe('Northern Lights')
+    expect(assetFields.file['en-GB'].contentType).toBe('image/jpeg')
+    expect(assetFields.file['en-GB'].fileName).toBe('aurora.jpg')
+    expect(assetFields.file['en-GB'].uploadFrom.sys.id).toBe('upload-1')
   })
 
   it('creates entry with merged metadata and slugified title', async () => {
     setupPublishMocks()
-    mockGetEntries.mockResolvedValue({ items: [] })
+    mockEntryGetMany.mockResolvedValue({ items: [] })
 
     await publishPhoto('/photos/iceland/aurora.jpg', makeSidecar(), makeConfig())
 
-    expect(mockCreateEntry).toHaveBeenCalledWith(
-      'photo',
+    expect(mockEntryCreate).toHaveBeenCalledWith(
+      { contentTypeId: 'photo' },
       expect.objectContaining({
         fields: expect.objectContaining({
-          title: { 'en-US': 'Northern Lights' },
-          slug: { 'en-US': 'northern-lights' },
-          caption: { 'en-US': 'Aurora borealis dancing across the sky' },
-          tags: { 'en-US': ['aurora', 'iceland', 'night'] },
-          featured: { 'en-US': false },
+          title: { 'en-GB': 'Northern Lights' },
+          slug: { 'en-GB': 'northern-lights' },
+          caption: { 'en-GB': 'Aurora borealis dancing across the sky' },
+          tags: { 'en-GB': ['aurora', 'iceland', 'night'] },
+          featured: { 'en-GB': false },
         }),
       }),
     )
@@ -188,31 +201,33 @@ describe('publishPhoto', () => {
 
   it('links resolved collection in entry', async () => {
     setupPublishMocks()
-    mockGetEntries.mockResolvedValue({
+    mockEntryGetMany.mockResolvedValue({
       items: [{ sys: { id: 'collection-iceland' } }],
     })
 
     await publishPhoto('/photos/iceland/aurora.jpg', makeSidecar(), makeConfig())
 
-    const fields = mockCreateEntry.mock.calls[0]?.[1].fields
-    expect(fields.collections['en-US']).toEqual([
-      { sys: { type: 'Link', linkType: 'Entry', id: 'collection-iceland' } },
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.collections['en-GB']).toEqual([
+      {
+        sys: { type: 'Link', linkType: 'Entry', id: 'collection-iceland' },
+      },
     ])
   })
 
   it('omits collection link when not found', async () => {
     setupPublishMocks()
-    mockGetEntries.mockResolvedValue({ items: [] })
+    mockEntryGetMany.mockResolvedValue({ items: [] })
 
     await publishPhoto('/photos/iceland/aurora.jpg', makeSidecar(), makeConfig())
 
-    const fields = mockCreateEntry.mock.calls[0]?.[1].fields
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
     expect(fields.collections).toBeUndefined()
   })
 
   it('uses user edits over AI metadata when present', async () => {
     setupPublishMocks()
-    mockGetEntries.mockResolvedValue({ items: [] })
+    mockEntryGetMany.mockResolvedValue({ items: [] })
 
     const sidecar = makeSidecar({
       userEdits: {
@@ -224,32 +239,32 @@ describe('publishPhoto', () => {
 
     await publishPhoto('/photos/iceland/aurora.jpg', sidecar, makeConfig())
 
-    const fields = mockCreateEntry.mock.calls[0]?.[1].fields
-    expect(fields.title['en-US']).toBe('Custom Title')
-    expect(fields.slug['en-US']).toBe('custom-title')
-    expect(fields.caption['en-US']).toBe('My custom caption')
-    expect(fields.tags['en-US']).toEqual(['custom-tag'])
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.title['en-GB']).toBe('Custom Title')
+    expect(fields.slug['en-GB']).toBe('custom-title')
+    expect(fields.caption['en-GB']).toBe('My custom caption')
+    expect(fields.tags['en-GB']).toEqual(['custom-tag'])
   })
 
   it('includes EXIF data in entry fields', async () => {
     setupPublishMocks()
-    mockGetEntries.mockResolvedValue({ items: [] })
+    mockEntryGetMany.mockResolvedValue({ items: [] })
 
     await publishPhoto('/photos/iceland/aurora.jpg', makeSidecar(), makeConfig())
 
-    const fields = mockCreateEntry.mock.calls[0]?.[1].fields
-    expect(fields.camera['en-US']).toBe('Sony ILCE-7M4')
-    expect(fields.lens['en-US']).toBe('FE 24-70mm F2.8 GM II')
-    expect(fields.aperture['en-US']).toBe('f/8')
-    expect(fields.shutterSpeed['en-US']).toBe('1/250')
-    expect(fields.iso['en-US']).toBe(100)
-    expect(fields.focalLength['en-US']).toBe('35mm')
-    expect(fields.dateTaken['en-US']).toBe('2026-03-15T14:30:00.000Z')
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.camera['en-GB']).toBe('Sony ILCE-7M4')
+    expect(fields.lens['en-GB']).toBe('FE 24-70mm F2.8 GM II')
+    expect(fields.aperture['en-GB']).toBe('f/8')
+    expect(fields.shutterSpeed['en-GB']).toBe('1/250')
+    expect(fields.iso['en-GB']).toBe(100)
+    expect(fields.focalLength['en-GB']).toBe('35mm')
+    expect(fields.dateTaken['en-GB']).toBe('2026-03-15T14:30:00.000Z')
   })
 
   it('omits null EXIF fields from entry', async () => {
     setupPublishMocks()
-    mockGetEntries.mockResolvedValue({ items: [] })
+    mockEntryGetMany.mockResolvedValue({ items: [] })
 
     const sidecar = makeSidecar({
       exif: {
@@ -266,7 +281,7 @@ describe('publishPhoto', () => {
 
     await publishPhoto('/photos/iceland/aurora.jpg', sidecar, makeConfig())
 
-    const fields = mockCreateEntry.mock.calls[0]?.[1].fields
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
     expect(fields.camera).toBeUndefined()
     expect(fields.lens).toBeUndefined()
     expect(fields.aperture).toBeUndefined()
@@ -278,7 +293,7 @@ describe('publishPhoto', () => {
 
   it('omits tags when empty array', async () => {
     setupPublishMocks()
-    mockGetEntries.mockResolvedValue({ items: [] })
+    mockEntryGetMany.mockResolvedValue({ items: [] })
 
     const sidecar = makeSidecar({
       ai: {
@@ -292,57 +307,57 @@ describe('publishPhoto', () => {
 
     await publishPhoto('/photos/iceland/aurora.jpg', sidecar, makeConfig())
 
-    const fields = mockCreateEntry.mock.calls[0]?.[1].fields
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
     expect(fields.tags).toBeUndefined()
   })
 
   it('maps .png extension to image/png', async () => {
     setupPublishMocks()
-    mockGetEntries.mockResolvedValue({ items: [] })
+    mockEntryGetMany.mockResolvedValue({ items: [] })
 
     await publishPhoto('/photos/iceland/aurora.png', makeSidecar(), makeConfig())
 
-    const assetFields = mockCreateAsset.mock.calls[0]?.[0].fields
-    expect(assetFields.file['en-US'].contentType).toBe('image/png')
+    const assetFields = mockAssetCreate.mock.calls[0]?.[1].fields
+    expect(assetFields.file['en-GB'].contentType).toBe('image/png')
   })
 
   it('maps .webp extension to image/webp', async () => {
     setupPublishMocks()
-    mockGetEntries.mockResolvedValue({ items: [] })
+    mockEntryGetMany.mockResolvedValue({ items: [] })
 
     await publishPhoto('/photos/iceland/aurora.webp', makeSidecar(), makeConfig())
 
-    const assetFields = mockCreateAsset.mock.calls[0]?.[0].fields
-    expect(assetFields.file['en-US'].contentType).toBe('image/webp')
+    const assetFields = mockAssetCreate.mock.calls[0]?.[1].fields
+    expect(assetFields.file['en-GB'].contentType).toBe('image/webp')
   })
 
   it('falls back to octet-stream for unknown extension', async () => {
     setupPublishMocks()
-    mockGetEntries.mockResolvedValue({ items: [] })
+    mockEntryGetMany.mockResolvedValue({ items: [] })
 
     await publishPhoto('/photos/iceland/aurora.bmp', makeSidecar(), makeConfig())
 
-    const assetFields = mockCreateAsset.mock.calls[0]?.[0].fields
-    expect(assetFields.file['en-US'].contentType).toBe('application/octet-stream')
+    const assetFields = mockAssetCreate.mock.calls[0]?.[1].fields
+    expect(assetFields.file['en-GB'].contentType).toBe('application/octet-stream')
   })
 })
 
 describe('listCollections', () => {
   it('returns mapped collection entries', async () => {
-    mockGetEntries.mockResolvedValue({
+    mockEntryGetMany.mockResolvedValue({
       items: [
         {
           sys: { id: 'c1' },
           fields: {
-            title: { 'en-US': 'Iceland' },
-            slug: { 'en-US': 'iceland' },
+            title: { 'en-GB': 'Iceland' },
+            slug: { 'en-GB': 'iceland' },
           },
         },
         {
           sys: { id: 'c2' },
           fields: {
-            title: { 'en-US': 'Norway' },
-            slug: { 'en-US': 'norway' },
+            title: { 'en-GB': 'Norway' },
+            slug: { 'en-GB': 'norway' },
           },
         },
       ],
@@ -357,7 +372,7 @@ describe('listCollections', () => {
   })
 
   it('returns empty array when no collections exist', async () => {
-    mockGetEntries.mockResolvedValue({ items: [] })
+    mockEntryGetMany.mockResolvedValue({ items: [] })
 
     const result = await listCollections(makeConfig())
 
@@ -367,21 +382,28 @@ describe('listCollections', () => {
 
 describe('createCollection', () => {
   it('creates entry with title and slug then publishes', async () => {
-    const mockPublishNew = vi.fn().mockResolvedValue({})
-    mockCreateEntry.mockResolvedValue({
+    mockEntryCreate.mockResolvedValue({
       sys: { id: 'new-collection-1' },
-      publish: mockPublishNew,
+    })
+    mockEntryPublish.mockResolvedValue({
+      sys: { id: 'new-collection-1' },
     })
 
     const id = await createCollection(makeConfig(), 'New Zealand')
 
-    expect(mockCreateEntry).toHaveBeenCalledWith('collection', {
-      fields: {
-        title: { 'en-US': 'New Zealand' },
-        slug: { 'en-US': 'new-zealand' },
+    expect(mockEntryCreate).toHaveBeenCalledWith(
+      { contentTypeId: 'collection' },
+      {
+        fields: {
+          title: { 'en-GB': 'New Zealand' },
+          slug: { 'en-GB': 'new-zealand' },
+        },
       },
-    })
-    expect(mockPublishNew).toHaveBeenCalledTimes(1)
+    )
+    expect(mockEntryPublish).toHaveBeenCalledWith(
+      { entryId: 'new-collection-1' },
+      { sys: { id: 'new-collection-1' } },
+    )
     expect(id).toBe('new-collection-1')
   })
 })
