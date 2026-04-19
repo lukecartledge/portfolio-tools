@@ -1,11 +1,12 @@
 import { createReadStream } from 'node:fs'
 import { basename, extname } from 'node:path'
 import contentful from 'contentful-management'
+import type { PlainClientAPI } from 'contentful-management'
 import slugify from 'slugify'
 import type { Config } from './config.js'
 import type { Sidecar } from './types.js'
 import { mergeMetadata } from './types.js'
-import { PHOTO_CONTENT_TYPE, COLLECTION_CONTENT_TYPE } from './config.js'
+import { CONTENTFUL_LOCALE, PHOTO_CONTENT_TYPE, COLLECTION_CONTENT_TYPE } from './config.js'
 
 const CONTENTFUL_RATE_LIMIT_DELAY_MS = 150
 
@@ -14,99 +15,115 @@ interface PublishResult {
   entryId: string
 }
 
-async function getCmaEnvironment(config: Config) {
-  const client = contentful.createClient(
+function getClient(config: Config): PlainClientAPI {
+  return contentful.createClient(
     {
       accessToken: config.contentful.managementToken,
     },
-    { type: 'legacy' },
+    {
+      type: 'plain',
+      defaults: {
+        spaceId: config.contentful.spaceId,
+        environmentId: config.contentful.environment,
+      },
+    },
   )
-  const space = await client.getSpace(config.contentful.spaceId)
-  return space.getEnvironment(config.contentful.environment)
 }
-
-type CmaEnvironment = Awaited<ReturnType<typeof getCmaEnvironment>>
 
 export async function publishPhoto(
   filePath: string,
   sidecar: Sidecar,
   config: Config,
 ): Promise<PublishResult> {
-  const env = await getCmaEnvironment(config)
+  const client = getClient(config)
   const effective = mergeMetadata(sidecar.ai, sidecar.userEdits)
 
   const fileName = basename(filePath)
   const contentType = mimeTypeFor(extname(filePath))
 
-  const upload = await env.createUpload({ file: createReadStream(filePath) })
+  const upload = await client.upload.create({}, { file: createReadStream(filePath) })
   await delay(CONTENTFUL_RATE_LIMIT_DELAY_MS)
 
-  const asset = await env.createAsset({
-    fields: {
-      title: { 'en-US': effective.title },
-      file: {
-        'en-US': {
-          contentType,
-          fileName,
-          uploadFrom: {
-            sys: { type: 'Link', linkType: 'Upload', id: upload.sys.id },
+  const asset = await client.asset.create(
+    {},
+    {
+      fields: {
+        title: { [CONTENTFUL_LOCALE]: effective.title },
+        file: {
+          [CONTENTFUL_LOCALE]: {
+            contentType,
+            fileName,
+            uploadFrom: {
+              sys: { type: 'Link', linkType: 'Upload', id: upload.sys.id },
+            },
           },
         },
       },
     },
-  })
+  )
   await delay(CONTENTFUL_RATE_LIMIT_DELAY_MS)
 
-  const processedAsset = await asset.processForAllLocales()
-  await waitForAssetProcessing(env, processedAsset.sys.id)
+  await client.asset.processForAllLocales({}, asset)
+  await waitForAssetProcessing(client, asset.sys.id)
   await delay(CONTENTFUL_RATE_LIMIT_DELAY_MS)
 
-  const latestAsset = await env.getAsset(processedAsset.sys.id)
-  await latestAsset.publish()
+  const latestAsset = await client.asset.get({ assetId: asset.sys.id })
+  await client.asset.publish({ assetId: latestAsset.sys.id }, latestAsset)
   await delay(CONTENTFUL_RATE_LIMIT_DELAY_MS)
 
-  const collectionId = await resolveCollection(env, sidecar.collection)
+  const collectionId = await resolveCollection(client, sidecar.collection)
 
   const slug = slugify(effective.title, { lower: true, strict: true })
-  const entry = await env.createEntry(PHOTO_CONTENT_TYPE, {
-    fields: {
-      title: { 'en-US': effective.title },
-      slug: { 'en-US': slug },
-      image: {
-        'en-US': {
-          sys: { type: 'Link', linkType: 'Asset', id: latestAsset.sys.id },
+  const entry = await client.entry.create(
+    { contentTypeId: PHOTO_CONTENT_TYPE },
+    {
+      fields: {
+        title: { [CONTENTFUL_LOCALE]: effective.title },
+        slug: { [CONTENTFUL_LOCALE]: slug },
+        image: {
+          [CONTENTFUL_LOCALE]: {
+            sys: { type: 'Link', linkType: 'Asset', id: latestAsset.sys.id },
+          },
         },
-      },
-      caption: effective.caption ? { 'en-US': effective.caption } : undefined,
-      dateTaken: sidecar.exif.dateTaken ? { 'en-US': sidecar.exif.dateTaken } : undefined,
-      camera: sidecar.exif.camera ? { 'en-US': sidecar.exif.camera } : undefined,
-      lens: sidecar.exif.lens ? { 'en-US': sidecar.exif.lens } : undefined,
-      aperture: sidecar.exif.aperture ? { 'en-US': sidecar.exif.aperture } : undefined,
-      shutterSpeed: sidecar.exif.shutterSpeed ? { 'en-US': sidecar.exif.shutterSpeed } : undefined,
-      iso: sidecar.exif.iso ? { 'en-US': sidecar.exif.iso } : undefined,
-      focalLength: sidecar.exif.focalLength ? { 'en-US': sidecar.exif.focalLength } : undefined,
-      tags: effective.tags.length > 0 ? { 'en-US': effective.tags } : undefined,
-      ...(collectionId
-        ? {
-            collections: {
-              'en-US': [
-                {
-                  sys: {
-                    type: 'Link',
-                    linkType: 'Entry',
-                    id: collectionId,
+        caption: effective.caption ? { [CONTENTFUL_LOCALE]: effective.caption } : undefined,
+        dateTaken: sidecar.exif.dateTaken
+          ? { [CONTENTFUL_LOCALE]: sidecar.exif.dateTaken }
+          : undefined,
+        camera: sidecar.exif.camera ? { [CONTENTFUL_LOCALE]: sidecar.exif.camera } : undefined,
+        lens: sidecar.exif.lens ? { [CONTENTFUL_LOCALE]: sidecar.exif.lens } : undefined,
+        aperture: sidecar.exif.aperture
+          ? { [CONTENTFUL_LOCALE]: sidecar.exif.aperture }
+          : undefined,
+        shutterSpeed: sidecar.exif.shutterSpeed
+          ? { [CONTENTFUL_LOCALE]: sidecar.exif.shutterSpeed }
+          : undefined,
+        iso: sidecar.exif.iso ? { [CONTENTFUL_LOCALE]: sidecar.exif.iso } : undefined,
+        focalLength: sidecar.exif.focalLength
+          ? { [CONTENTFUL_LOCALE]: sidecar.exif.focalLength }
+          : undefined,
+        tags: effective.tags.length > 0 ? { [CONTENTFUL_LOCALE]: effective.tags } : undefined,
+        ...(collectionId
+          ? {
+              collections: {
+                [CONTENTFUL_LOCALE]: [
+                  {
+                    sys: {
+                      type: 'Link',
+                      linkType: 'Entry',
+                      id: collectionId,
+                    },
                   },
-                },
-              ],
-            },
-          }
-        : {}),
-      featured: { 'en-US': false },
+                ],
+              },
+            }
+          : {}),
+        featured: { [CONTENTFUL_LOCALE]: false },
+      },
     },
-  })
+  )
   await delay(CONTENTFUL_RATE_LIMIT_DELAY_MS)
 
-  await entry.publish()
+  await client.entry.publish({ entryId: entry.sys.id }, entry)
 
   return {
     assetId: latestAsset.sys.id,
@@ -117,45 +134,50 @@ export async function publishPhoto(
 export async function listCollections(
   config: Config,
 ): Promise<Array<{ id: string; title: string; slug: string }>> {
-  const env = await getCmaEnvironment(config)
+  const client = getClient(config)
 
-  const entries = await env.getEntries({
-    content_type: COLLECTION_CONTENT_TYPE,
+  const entries = await client.entry.getMany({
+    query: { content_type: COLLECTION_CONTENT_TYPE },
   })
 
   return entries.items.map((entry) => ({
     id: entry.sys.id,
-    title: (entry.fields.title as Record<string, string>)?.['en-US'] ?? '',
-    slug: (entry.fields.slug as Record<string, string>)?.['en-US'] ?? '',
+    title: (entry.fields.title as Record<string, string>)?.[CONTENTFUL_LOCALE] ?? '',
+    slug: (entry.fields.slug as Record<string, string>)?.[CONTENTFUL_LOCALE] ?? '',
   }))
 }
 
 export async function createCollection(config: Config, title: string): Promise<string> {
-  const env = await getCmaEnvironment(config)
+  const client = getClient(config)
 
   const slug = slugify(title, { lower: true, strict: true })
 
-  const entry = await env.createEntry(COLLECTION_CONTENT_TYPE, {
-    fields: {
-      title: { 'en-US': title },
-      slug: { 'en-US': slug },
+  const entry = await client.entry.create(
+    { contentTypeId: COLLECTION_CONTENT_TYPE },
+    {
+      fields: {
+        title: { [CONTENTFUL_LOCALE]: title },
+        slug: { [CONTENTFUL_LOCALE]: slug },
+      },
     },
-  })
+  )
 
-  await entry.publish()
+  await client.entry.publish({ entryId: entry.sys.id }, entry)
   return entry.sys.id
 }
 
 async function resolveCollection(
-  env: CmaEnvironment,
+  client: PlainClientAPI,
   collectionName: string,
 ): Promise<string | null> {
   const slug = slugify(collectionName, { lower: true, strict: true })
 
-  const entries = await env.getEntries({
-    content_type: COLLECTION_CONTENT_TYPE,
-    'fields.slug': slug,
-    limit: 1,
+  const entries = await client.entry.getMany({
+    query: {
+      content_type: COLLECTION_CONTENT_TYPE,
+      'fields.slug': slug,
+      limit: 1,
+    },
   })
 
   if (entries.items.length > 0) {
@@ -166,13 +188,13 @@ async function resolveCollection(
 }
 
 async function waitForAssetProcessing(
-  env: CmaEnvironment,
+  client: PlainClientAPI,
   assetId: string,
   maxAttempts = 30,
 ): Promise<void> {
   for (let i = 0; i < maxAttempts; i++) {
-    const asset = await env.getAsset(assetId)
-    const file = (asset.fields.file as Record<string, unknown>)?.['en-US'] as
+    const asset = await client.asset.get({ assetId })
+    const file = (asset.fields.file as Record<string, unknown>)?.[CONTENTFUL_LOCALE] as
       | { url?: string }
       | undefined
 
