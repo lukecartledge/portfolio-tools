@@ -14,7 +14,7 @@ import {
   patchSidecar,
   markPublished,
 } from '../sidecar.js'
-import { publishPhoto } from '../publisher.js'
+import { publishPhoto, createCollection, listCollections } from '../publisher.js'
 import { errorMessage } from '../utils.js'
 
 export function createApi(config: Config): Hono {
@@ -105,7 +105,6 @@ export function createApi(config: Config): Hono {
 
   app.post('/api/collections', async (c) => {
     try {
-      const { createCollection } = await import('../publisher.js')
       const body = await c.req.json<{ title: string }>()
 
       if (!body.title) {
@@ -121,7 +120,6 @@ export function createApi(config: Config): Hono {
 
   app.get('/api/collections', async (c) => {
     try {
-      const { listCollections } = await import('../publisher.js')
       const collections = await listCollections(config)
       return c.json<ApiResponse<typeof collections>>({ ok: true, data: collections })
     } catch (error) {
