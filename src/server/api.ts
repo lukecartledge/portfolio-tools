@@ -3,9 +3,10 @@ import { join, basename, extname } from 'node:path'
 import sharp from 'sharp'
 import { Hono } from 'hono'
 import type { Config } from '../config.js'
-import type { PhotoWithMetadata, ApiResponse, SidecarStatus } from '../types.js'
+import type { PhotoWithMetadata, ApiResponse, UserEdits } from '../types.js'
+import { mergeMetadata } from '../types.js'
 import { IMAGE_EXTENSIONS } from '../config.js'
-import { sidecarPathFor, readSidecar, writeSidecar, hasSidecar } from '../sidecar.js'
+import { sidecarPathFor, readSidecar, writeSidecar, hasSidecar, patchSidecar } from '../sidecar.js'
 import { publishPhoto } from '../publisher.js'
 
 export function createApi(config: Config): Hono {
@@ -24,7 +25,12 @@ export function createApi(config: Config): Hono {
   app.patch('/api/photos/:collection/:filename', async (c) => {
     try {
       const { collection, filename } = c.req.param()
-      const body = await c.req.json()
+      const body = await c.req.json<{
+        status?: string
+        title?: string
+        caption?: string
+        tags?: string[]
+      }>()
       const photoPath = join(config.watchDir, collection, filename)
       const sidecarPath = sidecarPathFor(photoPath)
 
@@ -32,14 +38,18 @@ export function createApi(config: Config): Hono {
         return c.json<ApiResponse<never>>({ ok: false, error: 'Sidecar not found' }, 404)
       }
 
-      const sidecar = await readSidecar(sidecarPath)
+      const userEdits: UserEdits = {}
+      if (body.title !== undefined) userEdits.title = body.title
+      if (body.caption !== undefined) userEdits.caption = body.caption
+      if (body.tags !== undefined) userEdits.tags = body.tags
 
-      if (body.status) sidecar.status = body.status as SidecarStatus
-      if (body.title) sidecar.ai.title = body.title
-      if (body.caption) sidecar.ai.caption = body.caption
-      if (body.tags) sidecar.ai.tags = body.tags
+      const hasEdits = Object.keys(userEdits).length > 0
 
-      await writeSidecar(sidecarPath, sidecar)
+      const sidecar = await patchSidecar(sidecarPath, {
+        ...(body.status ? { status: body.status as 'pending' | 'approved' | 'published' } : {}),
+        ...(hasEdits ? { userEdits } : {}),
+      })
+
       return c.json<ApiResponse<{ status: string }>>({ ok: true, data: { status: sidecar.status } })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -181,6 +191,7 @@ async function scanPhotos(watchDir: string): Promise<PhotoWithMetadata[]> {
           collection: collectionName,
           sidecarPath,
           sidecar,
+          effective: mergeMetadata(sidecar.ai, sidecar.userEdits),
         })
       } catch {
         continue
