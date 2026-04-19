@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   check:
-    name: Type check and test
+    name: 🔍 Lint, type check, and test
     runs-on: ubuntu-latest
 
     steps:
@@ -24,8 +24,11 @@ jobs:
 
       - run: npm ci
 
-      - name: Type check
+      - name: 💅 Lint
+        run: npx prettier --check .
+
+      - name: 🔒 Type check
         run: npx tsc --noEmit
 
-      - name: Run tests
+      - name: 🧪 Run tests
         run: npm test
