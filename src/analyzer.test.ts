@@ -34,9 +34,8 @@ vi.mock('@anthropic-ai/sdk', () => {
 import exifr from 'exifr'
 import sharp from 'sharp'
 
-const { extractExif, analyzeWithVision, analyzePhoto, deriveCollectionTag } = await import(
-  './analyzer.js'
-)
+const { extractExif, analyzeWithVision, analyzePhoto, deriveCollectionTag } =
+  await import('./analyzer.js')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -343,7 +342,7 @@ describe('analyzeWithVision', () => {
 })
 
 describe('analyzePhoto', () => {
-  it('runs EXIF extraction and vision analysis in parallel', async () => {
+  it('returns EXIF and AI metadata', async () => {
     vi.mocked(exifr.parse).mockResolvedValue({
       Make: 'Sony',
       Model: 'ILCE-7M4',
@@ -370,6 +369,64 @@ describe('analyzePhoto', () => {
     expect(result.ai.title).toBe('Test Photo')
     expect(result.ai.tags).toEqual(['test'])
   })
+
+  it('passes EXIF date and GPS as context to vision when context provided', async () => {
+    vi.mocked(exifr.parse).mockResolvedValue({
+      Make: 'Sony',
+      Model: 'ILCE-7M4',
+      DateTimeOriginal: new Date('2026-03-15T14:30:00Z'),
+      latitude: 64.0,
+      longitude: -20.0,
+    })
+
+    anthropicCreateMock.mockResolvedValue({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            title: 'Iceland Photo',
+            caption: 'Northern landscape',
+            tags: ['landscape'],
+          }),
+        },
+      ],
+    })
+
+    const result = await analyzePhoto('/photos/iceland/photo.jpg', 'test-key', {
+      collection: 'Iceland',
+      filename: 'photo.jpg',
+    })
+
+    // Vision prompt should include EXIF-derived context
+    const callArgs = anthropicCreateMock.mock.calls[0]?.[0]
+    const promptText = callArgs.messages[0].content[1].text as string
+    expect(promptText).toContain('Date taken: 2026-03-15T14:30:00.000Z')
+    expect(promptText).toContain('GPS coordinates: 64, -20')
+
+    // Collection tag should be appended
+    expect(result.ai.tags).toContain('iceland')
+  })
+
+  it('works without context for backward compatibility', async () => {
+    vi.mocked(exifr.parse).mockResolvedValue({})
+
+    anthropicCreateMock.mockResolvedValue({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            title: 'Photo',
+            caption: 'A photo',
+            tags: ['test'],
+          }),
+        },
+      ],
+    })
+
+    const result = await analyzePhoto('/photos/photo.jpg', 'test-key')
+
+    expect(result.ai.tags).toEqual(['test'])
+  })
 })
 
 describe('deriveCollectionTag', () => {
@@ -390,7 +447,7 @@ describe('deriveCollectionTag', () => {
   })
 
   it('handles names with special characters', () => {
-    expect(deriveCollectionTag("Milford Sound (NZ)")).toBe('milford-sound-nz')
+    expect(deriveCollectionTag('Milford Sound (NZ)')).toBe('milford-sound-nz')
   })
 
   it('preserves numbers in names', () => {

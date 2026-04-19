@@ -53,14 +53,11 @@ export async function analyzeWithVision(
     contextLines.push(`- Collection: "${context.collection}"`)
     contextLines.push(`- Filename: "${context.filename}"`)
     if (context.dateTaken) contextLines.push(`- Date taken: ${context.dateTaken}`)
-    if (context.gps)
-      contextLines.push(`- GPS coordinates: ${context.gps.lat}, ${context.gps.lng}`)
+    if (context.gps) contextLines.push(`- GPS coordinates: ${context.gps.lat}, ${context.gps.lng}`)
   }
 
   const contextBlock =
-    contextLines.length > 0
-      ? `\n\nContext about this photo:\n${contextLines.join('\n')}\n`
-      : ''
+    contextLines.length > 0 ? `\n\nContext about this photo:\n${contextLines.join('\n')}\n` : ''
 
   const client = new Anthropic({ apiKey })
   const response = await client.messages.create({
@@ -112,8 +109,15 @@ Respond with ONLY valid JSON, no markdown fencing:
 export async function analyzePhoto(
   filePath: string,
   apiKey: string,
+  context?: { collection: string; filename: string },
 ): Promise<{ exif: ExifData; ai: AiMetadata }> {
-  const [exif, ai] = await Promise.all([extractExif(filePath), analyzeWithVision(filePath, apiKey)])
+  const exif = await extractExif(filePath)
+
+  const visionContext: VisionContext | undefined = context
+    ? { ...context, dateTaken: exif.dateTaken, gps: exif.gps }
+    : undefined
+
+  const ai = await analyzeWithVision(filePath, apiKey, visionContext)
   return { exif, ai }
 }
 
