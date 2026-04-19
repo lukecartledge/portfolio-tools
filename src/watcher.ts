@@ -4,6 +4,7 @@ import { IMAGE_EXTENSIONS, WRITE_STABILITY_THRESHOLD, WRITE_POLL_INTERVAL } from
 import { hasSidecar, sidecarPathFor, createEmptySidecar, writeSidecar } from './sidecar.js'
 import { analyzePhoto } from './analyzer.js'
 import type { Config } from './config.js'
+import { errorMessage } from './utils.js'
 
 export function startWatcher(config: Config) {
   const globPattern = `${config.watchDir}/**/*.{jpg,jpeg,tif,tiff,png,webp}`
@@ -32,8 +33,7 @@ export function startWatcher(config: Config) {
   })
 
   watcher.on('error', (error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error('Watcher error:', message)
+    console.error('Watcher error:', errorMessage(error))
   })
 
   return watcher
@@ -59,8 +59,7 @@ async function processNewPhoto(filePath: string, config: Config) {
     await writeSidecar(sidecarPath, sidecar)
     console.log(`  Done: ${ai.title} [${ai.tags.join(', ')}]`)
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error(`  Failed to analyze ${source}: ${message}`)
+    console.error(`  Failed to analyze ${source}: ${errorMessage(error)}`)
 
     // Write partial sidecar so the photo isn't re-processed on restart
     await writeSidecar(sidecarPath, sidecar)

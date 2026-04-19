@@ -1,7 +1,6 @@
 import { readdir, stat } from 'node:fs/promises'
 import { join, extname } from 'node:path'
-import { loadConfig } from './config.js'
-import { IMAGE_EXTENSIONS } from './config.js'
+import { loadConfig, IMAGE_EXTENSIONS } from './config.js'
 import {
   hasSidecar,
   sidecarPathFor,
@@ -12,6 +11,7 @@ import {
 import { analyzePhoto } from './analyzer.js'
 import { publishPhoto } from './publisher.js'
 import { startWatcher } from './watcher.js'
+import { errorMessage } from './utils.js'
 
 import 'dotenv/config'
 
@@ -81,8 +81,7 @@ async function runAnalyze() {
         console.log(`  Tags: ${ai.tags.join(', ')}`)
         analyzed++
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        console.error(`  Failed: ${message}`)
+        console.error(`  Failed: ${errorMessage(error)}`)
         await writeSidecar(sidecarPathFor(filePath), sidecar)
       }
     }
@@ -135,8 +134,7 @@ async function runPublish() {
         console.log(`  Published: entry ${result.entryId}`)
         published++
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        console.error(`  Failed: ${message}`)
+        console.error(`  Failed: ${errorMessage(error)}`)
         errors++
       }
     }
