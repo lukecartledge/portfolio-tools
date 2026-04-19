@@ -34,7 +34,8 @@ vi.mock('@anthropic-ai/sdk', () => {
 import exifr from 'exifr'
 import sharp from 'sharp'
 
-const { extractExif, analyzeWithVision, analyzePhoto } = await import('./analyzer.js')
+const { extractExif, analyzeWithVision, analyzePhoto, deriveCollectionTag } =
+  await import('./analyzer.js')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -224,10 +225,124 @@ describe('analyzeWithVision', () => {
 
     await expect(analyzeWithVision('/photos/photo.jpg', 'test-key')).rejects.toThrow()
   })
+
+  it('includes context in the prompt when provided', async () => {
+    anthropicCreateMock.mockResolvedValue({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({ title: 'Test', caption: 'Test', tags: ['landscape'] }),
+        },
+      ],
+    })
+
+    await analyzeWithVision('/photos/iceland/photo.jpg', 'test-key', {
+      collection: 'Iceland',
+      filename: 'photo.jpg',
+      dateTaken: '2026-03-15T14:30:00.000Z',
+      gps: { lat: 64.0, lng: -20.0 },
+    })
+
+    const callArgs = anthropicCreateMock.mock.calls[0]?.[0]
+    const promptText = callArgs.messages[0].content[1].text as string
+    expect(promptText).toContain('Collection: "Iceland"')
+    expect(promptText).toContain('Filename: "photo.jpg"')
+    expect(promptText).toContain('Date taken: 2026-03-15T14:30:00.000Z')
+    expect(promptText).toContain('GPS coordinates: 64, -20')
+  })
+
+  it('omits optional context fields when null', async () => {
+    anthropicCreateMock.mockResolvedValue({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({ title: 'Test', caption: 'Test', tags: ['landscape'] }),
+        },
+      ],
+    })
+
+    await analyzeWithVision('/photos/photo.jpg', 'test-key', {
+      collection: 'Mountains',
+      filename: 'summit.jpg',
+      dateTaken: null,
+      gps: null,
+    })
+
+    const callArgs = anthropicCreateMock.mock.calls[0]?.[0]
+    const promptText = callArgs.messages[0].content[1].text as string
+    expect(promptText).toContain('Collection: "Mountains"')
+    expect(promptText).toContain('Filename: "summit.jpg"')
+    expect(promptText).not.toContain('Date taken')
+    expect(promptText).not.toContain('GPS coordinates')
+  })
+
+  it('appends collection tag to AI-generated tags', async () => {
+    anthropicCreateMock.mockResolvedValue({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            title: 'Milford Sound',
+            caption: 'Dramatic fjord scenery',
+            tags: ['landscape', 'mountains', 'water'],
+          }),
+        },
+      ],
+    })
+
+    const result = await analyzeWithVision('/photos/photo.jpg', 'test-key', {
+      collection: 'New Zealand',
+      filename: 'milford.jpg',
+    })
+
+    expect(result.tags).toEqual(['landscape', 'mountains', 'water', 'new-zealand'])
+  })
+
+  it('does not duplicate collection tag when AI already includes it', async () => {
+    anthropicCreateMock.mockResolvedValue({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            title: 'Reykjavik Sunset',
+            caption: 'Golden light over the city',
+            tags: ['sunset', 'iceland', 'city'],
+          }),
+        },
+      ],
+    })
+
+    const result = await analyzeWithVision('/photos/photo.jpg', 'test-key', {
+      collection: 'Iceland',
+      filename: 'sunset.jpg',
+    })
+
+    expect(result.tags).toEqual(['sunset', 'iceland', 'city'])
+    expect(result.tags.filter((t) => t === 'iceland')).toHaveLength(1)
+  })
+
+  it('does not add collection tag when no context provided', async () => {
+    anthropicCreateMock.mockResolvedValue({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            title: 'Mountain Vista',
+            caption: 'A sweeping view',
+            tags: ['landscape', 'mountains'],
+          }),
+        },
+      ],
+    })
+
+    const result = await analyzeWithVision('/photos/photo.jpg', 'test-key')
+
+    expect(result.tags).toEqual(['landscape', 'mountains'])
+  })
 })
 
 describe('analyzePhoto', () => {
-  it('runs EXIF extraction and vision analysis in parallel', async () => {
+  it('returns EXIF and AI metadata', async () => {
     vi.mocked(exifr.parse).mockResolvedValue({
       Make: 'Sony',
       Model: 'ILCE-7M4',
@@ -253,5 +368,89 @@ describe('analyzePhoto', () => {
     expect(result.exif.iso).toBe(100)
     expect(result.ai.title).toBe('Test Photo')
     expect(result.ai.tags).toEqual(['test'])
+  })
+
+  it('passes EXIF date and GPS as context to vision when context provided', async () => {
+    vi.mocked(exifr.parse).mockResolvedValue({
+      Make: 'Sony',
+      Model: 'ILCE-7M4',
+      DateTimeOriginal: new Date('2026-03-15T14:30:00Z'),
+      latitude: 64.0,
+      longitude: -20.0,
+    })
+
+    anthropicCreateMock.mockResolvedValue({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            title: 'Iceland Photo',
+            caption: 'Northern landscape',
+            tags: ['landscape'],
+          }),
+        },
+      ],
+    })
+
+    const result = await analyzePhoto('/photos/iceland/photo.jpg', 'test-key', {
+      collection: 'Iceland',
+      filename: 'photo.jpg',
+    })
+
+    // Vision prompt should include EXIF-derived context
+    const callArgs = anthropicCreateMock.mock.calls[0]?.[0]
+    const promptText = callArgs.messages[0].content[1].text as string
+    expect(promptText).toContain('Date taken: 2026-03-15T14:30:00.000Z')
+    expect(promptText).toContain('GPS coordinates: 64, -20')
+
+    // Collection tag should be appended
+    expect(result.ai.tags).toContain('iceland')
+  })
+
+  it('works without context for backward compatibility', async () => {
+    vi.mocked(exifr.parse).mockResolvedValue({})
+
+    anthropicCreateMock.mockResolvedValue({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            title: 'Photo',
+            caption: 'A photo',
+            tags: ['test'],
+          }),
+        },
+      ],
+    })
+
+    const result = await analyzePhoto('/photos/photo.jpg', 'test-key')
+
+    expect(result.ai.tags).toEqual(['test'])
+  })
+})
+
+describe('deriveCollectionTag', () => {
+  it('lowercases and hyphenates a collection name', () => {
+    expect(deriveCollectionTag('New Zealand')).toBe('new-zealand')
+  })
+
+  it('handles already-lowercase names', () => {
+    expect(deriveCollectionTag('iceland')).toBe('iceland')
+  })
+
+  it('strips leading and trailing hyphens', () => {
+    expect(deriveCollectionTag('--Mountains--')).toBe('mountains')
+  })
+
+  it('collapses multiple non-alphanumeric characters', () => {
+    expect(deriveCollectionTag('South East   Asia')).toBe('south-east-asia')
+  })
+
+  it('handles names with special characters', () => {
+    expect(deriveCollectionTag('Milford Sound (NZ)')).toBe('milford-sound-nz')
+  })
+
+  it('preserves numbers in names', () => {
+    expect(deriveCollectionTag('Route 66')).toBe('route-66')
   })
 })

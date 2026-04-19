@@ -48,7 +48,10 @@ async function processNewPhoto(filePath: string, config: Config) {
 
   try {
     console.log(`  Analyzing: ${source}...`)
-    const { exif, ai } = await analyzePhoto(filePath, config.anthropic.apiKey)
+    const { exif, ai } = await analyzePhoto(filePath, config.anthropic.apiKey, {
+      collection,
+      filename: source,
+    })
 
     sidecar.exif = exif
     sidecar.ai = ai
