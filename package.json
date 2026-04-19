@@ -1,0 +1,32 @@
+{
+  "name": "portfolio-tools",
+  "version": "0.1.0",
+  "description": "Photo metadata automation — AI vision + EXIF extraction + Contentful publishing with local review UI",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx src/server/index.ts",
+    "analyze": "tsx src/cli.ts analyze",
+    "watch": "tsx src/cli.ts watch",
+    "publish": "tsx src/cli.ts publish",
+    "build": "tsc --noEmit",
+    "lint": "prettier --check . && tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "chokidar": "^3.6.0",
+    "contentful-management": "^11.44.0",
+    "exifr": "^7.1.3",
+    "hono": "^4.7.0",
+    "sharp": "^0.33.5",
+    "slugify": "^1.6.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "prettier": "^3.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}
