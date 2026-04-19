@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   loadConfig,
   IMAGE_EXTENSIONS,
+  CONTENTFUL_LOCALE,
   PHOTO_CONTENT_TYPE,
   COLLECTION_CONTENT_TYPE,
   VISION_MODEL,
@@ -112,6 +113,10 @@ describe('constants', () => {
     expect(IMAGE_EXTENSIONS.has('.json')).toBe(false)
     expect(IMAGE_EXTENSIONS.has('.txt')).toBe(false)
     expect(IMAGE_EXTENSIONS.has('.mp4')).toBe(false)
+  })
+
+  it('CONTENTFUL_LOCALE is en-GB', () => {
+    expect(CONTENTFUL_LOCALE).toBe('en-GB')
   })
 
   it('PHOTO_CONTENT_TYPE is photo', () => {

@@ -41,6 +41,9 @@ export type Config = ReturnType<typeof loadConfig>
 /** Supported image extensions */
 export const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.tif', '.tiff', '.png', '.webp'])
 
+/** Contentful locale for all field values */
+export const CONTENTFUL_LOCALE = 'en-GB'
+
 /** Contentful photo content type ID */
 export const PHOTO_CONTENT_TYPE = 'photo'
 
