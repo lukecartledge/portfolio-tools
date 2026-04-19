@@ -70,7 +70,10 @@ async function runAnalyze() {
       const sidecar = createEmptySidecar(file, collectionName)
 
       try {
-        const { exif, ai } = await analyzePhoto(filePath, config.anthropic.apiKey)
+        const { exif, ai } = await analyzePhoto(filePath, config.anthropic.apiKey, {
+          collection: collectionName,
+          filename: file,
+        })
         sidecar.exif = exif
         sidecar.ai = ai
         await writeSidecar(sidecarPathFor(filePath), sidecar)
