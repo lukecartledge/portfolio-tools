@@ -15,9 +15,12 @@ interface PublishResult {
 }
 
 async function getCmaEnvironment(config: Config) {
-  const client = contentful.createClient({
-    accessToken: config.contentful.managementToken,
-  })
+  const client = contentful.createClient(
+    {
+      accessToken: config.contentful.managementToken,
+    },
+    { type: 'legacy' },
+  )
   const space = await client.getSpace(config.contentful.spaceId)
   return space.getEnvironment(config.contentful.environment)
 }
