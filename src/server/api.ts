@@ -6,8 +6,16 @@ import type { Config } from '../config.js'
 import type { PhotoWithMetadata, ApiResponse, UserEdits } from '../types.js'
 import { mergeMetadata } from '../types.js'
 import { IMAGE_EXTENSIONS } from '../config.js'
-import { sidecarPathFor, readSidecar, writeSidecar, hasSidecar, patchSidecar } from '../sidecar.js'
-import { publishPhoto } from '../publisher.js'
+import {
+  sidecarPathFor,
+  readSidecar,
+  writeSidecar,
+  hasSidecar,
+  patchSidecar,
+  markPublished,
+} from '../sidecar.js'
+import { publishPhoto, createCollection, listCollections } from '../publisher.js'
+import { errorMessage } from '../utils.js'
 
 export function createApi(config: Config): Hono {
   const app = new Hono()
@@ -17,8 +25,7 @@ export function createApi(config: Config): Hono {
       const photos = await scanPhotos(config.watchDir)
       return c.json<ApiResponse<PhotoWithMetadata[]>>({ ok: true, data: photos })
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      return c.json<ApiResponse<never>>({ ok: false, error: message }, 500)
+      return c.json<ApiResponse<never>>({ ok: false, error: errorMessage(error) }, 500)
     }
   })
 
@@ -52,8 +59,7 @@ export function createApi(config: Config): Hono {
 
       return c.json<ApiResponse<{ status: string }>>({ ok: true, data: { status: sidecar.status } })
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      return c.json<ApiResponse<never>>({ ok: false, error: message }, 500)
+      return c.json<ApiResponse<never>>({ ok: false, error: errorMessage(error) }, 500)
     }
   })
 
@@ -69,8 +75,7 @@ export function createApi(config: Config): Hono {
 
       return c.json<ApiResponse<{ status: string }>>({ ok: true, data: { status: 'approved' } })
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      return c.json<ApiResponse<never>>({ ok: false, error: message }, 500)
+      return c.json<ApiResponse<never>>({ ok: false, error: errorMessage(error) }, 500)
     }
   })
 
@@ -90,23 +95,16 @@ export function createApi(config: Config): Hono {
       }
 
       const result = await publishPhoto(photoPath, sidecar, config)
-
-      sidecar.status = 'published'
-      sidecar.contentful.assetId = result.assetId
-      sidecar.contentful.entryId = result.entryId
-      sidecar.contentful.publishedAt = new Date().toISOString()
-      await writeSidecar(sidecarPath, sidecar)
+      await markPublished(sidecarPath, sidecar, result)
 
       return c.json<ApiResponse<typeof result>>({ ok: true, data: result })
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      return c.json<ApiResponse<never>>({ ok: false, error: message }, 500)
+      return c.json<ApiResponse<never>>({ ok: false, error: errorMessage(error) }, 500)
     }
   })
 
   app.post('/api/collections', async (c) => {
     try {
-      const { createCollection } = await import('../publisher.js')
       const body = await c.req.json<{ title: string }>()
 
       if (!body.title) {
@@ -116,19 +114,16 @@ export function createApi(config: Config): Hono {
       const id = await createCollection(config, body.title)
       return c.json<ApiResponse<{ id: string }>>({ ok: true, data: { id } })
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      return c.json<ApiResponse<never>>({ ok: false, error: message }, 500)
+      return c.json<ApiResponse<never>>({ ok: false, error: errorMessage(error) }, 500)
     }
   })
 
   app.get('/api/collections', async (c) => {
     try {
-      const { listCollections } = await import('../publisher.js')
       const collections = await listCollections(config)
       return c.json<ApiResponse<typeof collections>>({ ok: true, data: collections })
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      return c.json<ApiResponse<never>>({ ok: false, error: message }, 500)
+      return c.json<ApiResponse<never>>({ ok: false, error: errorMessage(error) }, 500)
     }
   })
 

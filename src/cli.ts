@@ -1,17 +1,18 @@
 import { readdir, stat } from 'node:fs/promises'
 import { join, extname } from 'node:path'
-import { loadConfig } from './config.js'
-import { IMAGE_EXTENSIONS } from './config.js'
+import { loadConfig, IMAGE_EXTENSIONS } from './config.js'
 import {
   hasSidecar,
   sidecarPathFor,
   readSidecar,
   writeSidecar,
   createEmptySidecar,
+  markPublished,
 } from './sidecar.js'
 import { analyzePhoto } from './analyzer.js'
 import { publishPhoto } from './publisher.js'
 import { startWatcher } from './watcher.js'
+import { errorMessage } from './utils.js'
 
 import 'dotenv/config'
 
@@ -81,8 +82,7 @@ async function runAnalyze() {
         console.log(`  Tags: ${ai.tags.join(', ')}`)
         analyzed++
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        console.error(`  Failed: ${message}`)
+        console.error(`  Failed: ${errorMessage(error)}`)
         await writeSidecar(sidecarPathFor(filePath), sidecar)
       }
     }
@@ -127,16 +127,11 @@ async function runPublish() {
 
       try {
         const result = await publishPhoto(filePath, sidecar, config)
-        sidecar.status = 'published'
-        sidecar.contentful.assetId = result.assetId
-        sidecar.contentful.entryId = result.entryId
-        sidecar.contentful.publishedAt = new Date().toISOString()
-        await writeSidecar(sidecarPath, sidecar)
+        await markPublished(sidecarPath, sidecar, result)
         console.log(`  Published: entry ${result.entryId}`)
         published++
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        console.error(`  Failed: ${message}`)
+        console.error(`  Failed: ${errorMessage(error)}`)
         errors++
       }
     }

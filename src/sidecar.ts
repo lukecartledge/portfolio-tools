@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import type { Sidecar, UserEdits } from './types.js'
-import { CURRENT_SCHEMA_VERSION } from './types.js'
+import { CURRENT_SCHEMA_VERSION, emptyExif } from './types.js'
 
 export function sidecarPathFor(photoPath: string): string {
   return photoPath.replace(/\.[^.]+$/, '.json')
@@ -45,22 +45,25 @@ export async function patchSidecar(
   return sidecar
 }
 
+export async function markPublished(
+  sidecarPath: string,
+  sidecar: Sidecar,
+  result: { assetId: string; entryId: string },
+): Promise<void> {
+  sidecar.status = 'published'
+  sidecar.contentful.assetId = result.assetId
+  sidecar.contentful.entryId = result.entryId
+  sidecar.contentful.publishedAt = new Date().toISOString()
+  await writeSidecar(sidecarPath, sidecar)
+}
+
 export function createEmptySidecar(source: string, collection: string): Sidecar {
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     status: 'pending',
     source,
     collection,
-    exif: {
-      camera: null,
-      lens: null,
-      aperture: null,
-      shutterSpeed: null,
-      iso: null,
-      focalLength: null,
-      dateTaken: null,
-      gps: null,
-    },
+    exif: emptyExif(),
     ai: {
       title: '',
       caption: '',

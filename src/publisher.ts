@@ -15,6 +15,11 @@ interface PublishResult {
   entryId: string
 }
 
+function localField<T>(value: T | null | undefined): { [key: string]: T } | undefined {
+  if (value == null) return undefined
+  return { [CONTENTFUL_LOCALE]: value }
+}
+
 function getClient(config: Config): PlainClientAPI {
   return contentful.createClient(
     {
@@ -85,22 +90,14 @@ export async function publishPhoto(
             sys: { type: 'Link', linkType: 'Asset', id: latestAsset.sys.id },
           },
         },
-        caption: effective.caption ? { [CONTENTFUL_LOCALE]: effective.caption } : undefined,
-        dateTaken: sidecar.exif.dateTaken
-          ? { [CONTENTFUL_LOCALE]: sidecar.exif.dateTaken }
-          : undefined,
-        camera: sidecar.exif.camera ? { [CONTENTFUL_LOCALE]: sidecar.exif.camera } : undefined,
-        lens: sidecar.exif.lens ? { [CONTENTFUL_LOCALE]: sidecar.exif.lens } : undefined,
-        aperture: sidecar.exif.aperture
-          ? { [CONTENTFUL_LOCALE]: sidecar.exif.aperture }
-          : undefined,
-        shutterSpeed: sidecar.exif.shutterSpeed
-          ? { [CONTENTFUL_LOCALE]: sidecar.exif.shutterSpeed }
-          : undefined,
-        iso: sidecar.exif.iso ? { [CONTENTFUL_LOCALE]: sidecar.exif.iso } : undefined,
-        focalLength: sidecar.exif.focalLength
-          ? { [CONTENTFUL_LOCALE]: sidecar.exif.focalLength }
-          : undefined,
+        caption: localField(effective.caption || null),
+        dateTaken: localField(sidecar.exif.dateTaken),
+        camera: localField(sidecar.exif.camera),
+        lens: localField(sidecar.exif.lens),
+        aperture: localField(sidecar.exif.aperture),
+        shutterSpeed: localField(sidecar.exif.shutterSpeed),
+        iso: localField(sidecar.exif.iso),
+        focalLength: localField(sidecar.exif.focalLength),
         tags: effective.tags.length > 0 ? { [CONTENTFUL_LOCALE]: effective.tags } : undefined,
         ...(collectionId
           ? {

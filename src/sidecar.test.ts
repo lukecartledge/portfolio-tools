@@ -9,6 +9,7 @@ import {
   writeSidecar,
   patchSidecar,
   createEmptySidecar,
+  markPublished,
 } from './sidecar.js'
 import { CURRENT_SCHEMA_VERSION } from './types.js'
 import type { Sidecar } from './types.js'
@@ -265,5 +266,40 @@ describe('patchSidecar', () => {
     expect(patched.schemaVersion).toBe(CURRENT_SCHEMA_VERSION)
     expect(patched.ai.title).toBe('Test')
     expect(patched.status).toBe('approved')
+  })
+})
+
+describe('markPublished', () => {
+  it('sets status to published and stores contentful IDs', async () => {
+    const sidecarPath = join(tempDir, 'photo.json')
+    const sidecar = makeSidecar({ status: 'approved' })
+    await writeSidecar(sidecarPath, sidecar)
+
+    await markPublished(sidecarPath, sidecar, {
+      assetId: 'asset_abc',
+      entryId: 'entry_xyz',
+    })
+
+    expect(sidecar.status).toBe('published')
+    expect(sidecar.contentful.assetId).toBe('asset_abc')
+    expect(sidecar.contentful.entryId).toBe('entry_xyz')
+    expect(sidecar.contentful.publishedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  it('persists changes to disk', async () => {
+    const sidecarPath = join(tempDir, 'photo.json')
+    const sidecar = makeSidecar({ status: 'approved' })
+    await writeSidecar(sidecarPath, sidecar)
+
+    await markPublished(sidecarPath, sidecar, {
+      assetId: 'asset_abc',
+      entryId: 'entry_xyz',
+    })
+
+    const reloaded = await readSidecar(sidecarPath)
+    expect(reloaded.status).toBe('published')
+    expect(reloaded.contentful.assetId).toBe('asset_abc')
+    expect(reloaded.contentful.entryId).toBe('entry_xyz')
+    expect(reloaded.contentful.publishedAt).toBeTruthy()
   })
 })

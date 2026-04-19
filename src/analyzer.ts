@@ -2,6 +2,7 @@ import exifr from 'exifr'
 import sharp from 'sharp'
 import Anthropic from '@anthropic-ai/sdk'
 import type { ExifData, AiMetadata, VisionContext } from './types.js'
+import { emptyExif } from './types.js'
 import { VISION_MODEL, VISION_MAX_DIMENSION } from './config.js'
 
 export async function extractExif(filePath: string): Promise<ExifData> {
@@ -127,19 +128,6 @@ export function deriveCollectionTag(collection: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
-}
-
-function emptyExif(): ExifData {
-  return {
-    camera: null,
-    lens: null,
-    aperture: null,
-    shutterSpeed: null,
-    iso: null,
-    focalLength: null,
-    dateTaken: null,
-    gps: null,
-  }
 }
 
 function formatCamera(make: string | undefined, model: string | undefined): string | null {

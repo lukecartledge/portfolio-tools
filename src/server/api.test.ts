@@ -13,6 +13,7 @@ vi.mock('../sidecar.js', () => ({
   writeSidecar: vi.fn().mockResolvedValue(undefined),
   hasSidecar: vi.fn(),
   patchSidecar: vi.fn(),
+  markPublished: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('../publisher.js', () => ({
@@ -33,7 +34,7 @@ vi.mock('sharp', () => {
 })
 
 import { readdir, stat } from 'node:fs/promises'
-import { readSidecar, writeSidecar, hasSidecar, patchSidecar } from '../sidecar.js'
+import { readSidecar, writeSidecar, hasSidecar, patchSidecar, markPublished } from '../sidecar.js'
 import { publishPhoto, listCollections, createCollection } from '../publisher.js'
 import sharp from 'sharp'
 
@@ -262,12 +263,12 @@ describe('POST /api/photos/:collection/:filename/publish', () => {
     expect(body.ok).toBe(true)
     expect(body.data).toEqual({ assetId: 'asset-1', entryId: 'entry-1' })
 
-    expect(vi.mocked(writeSidecar)).toHaveBeenCalledTimes(1)
-    const writtenSidecar = vi.mocked(writeSidecar).mock.calls[0]?.[1] as Sidecar
-    expect(writtenSidecar.status).toBe('published')
-    expect(writtenSidecar.contentful.assetId).toBe('asset-1')
-    expect(writtenSidecar.contentful.entryId).toBe('entry-1')
-    expect(writtenSidecar.contentful.publishedAt).toBeTruthy()
+    expect(vi.mocked(markPublished)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(markPublished)).toHaveBeenCalledWith(
+      '/photos/iceland/aurora.jpg'.replace(/\.\w+$/, '.json'),
+      sidecar,
+      { assetId: 'asset-1', entryId: 'entry-1' },
+    )
   })
 
   it('rejects with 400 when photo is not approved', async () => {

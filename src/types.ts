@@ -111,6 +111,20 @@ export interface ContentfulPhotoFields {
   displayOrder?: number
 }
 
+/** Factory for a blank ExifData object (all fields null) */
+export function emptyExif(): ExifData {
+  return {
+    camera: null,
+    lens: null,
+    aperture: null,
+    shutterSpeed: null,
+    iso: null,
+    focalLength: null,
+    dateTaken: null,
+    gps: null,
+  }
+}
+
 /** Merge AI metadata with user edits (user edits take precedence) */
 export function mergeMetadata(ai: AiMetadata, userEdits?: UserEdits): EffectiveMetadata {
   return {
