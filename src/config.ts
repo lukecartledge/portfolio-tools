@@ -10,7 +10,7 @@ function requiredEnv(key: string): string {
 }
 
 function optionalEnv(key: string, fallback: string): string {
-  return process.env[key] || fallback
+  return process.env[key] ?? fallback
 }
 
 /** Expand ~ to home directory */

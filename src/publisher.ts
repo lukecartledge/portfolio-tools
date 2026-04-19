@@ -15,7 +15,7 @@ interface PublishResult {
   entryId: string
 }
 
-function localField<T>(value: T | null | undefined): { [key: string]: T } | undefined {
+function localField<T>(value: T | null | undefined): Record<string, T> | undefined {
   if (value == null) return undefined
   return { [CONTENTFUL_LOCALE]: value }
 }
@@ -46,7 +46,9 @@ export async function publishPhoto(
   const fileName = basename(filePath)
   const contentType = mimeTypeFor(extname(filePath))
 
-  const upload = await client.upload.create({}, { file: createReadStream(filePath) })
+  const upload = (await client.upload.create({}, { file: createReadStream(filePath) })) as {
+    sys: { id: string }
+  }
   await delay(CONTENTFUL_RATE_LIMIT_DELAY_MS)
 
   const asset = await client.asset.create(
@@ -130,7 +132,7 @@ export async function publishPhoto(
 
 export async function listCollections(
   config: Config,
-): Promise<Array<{ id: string; title: string; slug: string }>> {
+): Promise<{ id: string; title: string; slug: string }[]> {
   const client = getClient(config)
 
   const entries = await client.entry.getMany({
@@ -139,8 +141,8 @@ export async function listCollections(
 
   return entries.items.map((entry) => ({
     id: entry.sys.id,
-    title: (entry.fields.title as Record<string, string>)?.[CONTENTFUL_LOCALE] ?? '',
-    slug: (entry.fields.slug as Record<string, string>)?.[CONTENTFUL_LOCALE] ?? '',
+    title: (entry.fields.title as Record<string, string>)[CONTENTFUL_LOCALE] ?? '',
+    slug: (entry.fields.slug as Record<string, string>)[CONTENTFUL_LOCALE] ?? '',
   }))
 }
 
@@ -178,7 +180,8 @@ async function resolveCollection(
   })
 
   if (entries.items.length > 0) {
-    return entries.items[0]!.sys.id
+    const first = entries.items[0]
+    if (first) return first.sys.id
   }
 
   return null
@@ -191,7 +194,7 @@ async function waitForAssetProcessing(
 ): Promise<void> {
   for (let i = 0; i < maxAttempts; i++) {
     const asset = await client.asset.get({ assetId })
-    const file = (asset.fields.file as Record<string, unknown>)?.[CONTENTFUL_LOCALE] as
+    const file = (asset.fields.file as Record<string, unknown>)[CONTENTFUL_LOCALE] as
       | { url?: string }
       | undefined
 

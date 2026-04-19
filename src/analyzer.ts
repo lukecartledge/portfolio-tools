@@ -5,15 +5,29 @@ import type { ExifData, AiMetadata, VisionContext } from './types.js'
 import { emptyExif } from './types.js'
 import { VISION_MODEL, VISION_MAX_DIMENSION } from './config.js'
 
+interface ExifrResult {
+  Make?: string
+  Model?: string
+  LensModel?: string
+  Lens?: string
+  FNumber?: number
+  ExposureTime?: number
+  ISO?: number
+  FocalLength?: number
+  DateTimeOriginal?: Date
+  latitude?: number
+  longitude?: number
+}
+
 export async function extractExif(filePath: string): Promise<ExifData> {
   try {
-    const raw = await exifr.parse(filePath, {
+    const raw = (await exifr.parse(filePath, {
       tiff: true,
       exif: true,
       gps: true,
       xmp: true,
       iptc: true,
-    })
+    })) as ExifrResult | undefined
 
     if (!raw) {
       return emptyExif()

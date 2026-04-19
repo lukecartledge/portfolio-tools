@@ -21,7 +21,7 @@ export function startWatcher(config: Config) {
     ignored: [/(^|[/\\])\../, /\.json$/],
   })
 
-  watcher.on('add', async (filePath: string) => {
+  watcher.on('add', (filePath: string) => {
     const ext = extname(filePath).toLowerCase()
     if (!IMAGE_EXTENSIONS.has(ext)) return
     if (hasSidecar(filePath)) {
@@ -30,7 +30,7 @@ export function startWatcher(config: Config) {
     }
 
     console.log(`New photo detected: ${basename(filePath)}`)
-    await processNewPhoto(filePath, config)
+    void processNewPhoto(filePath, config)
   })
 
   watcher.on('error', (error: unknown) => {
