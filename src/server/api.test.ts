@@ -324,9 +324,7 @@ describe('GET /api/collections', () => {
     ])
 
     const res = await app.request('/api/collections')
-    const body = (await res.json()) as ApiResponse<
-      Array<{ id: string; title: string; slug: string }>
-    >
+    const body = (await res.json()) as ApiResponse<{ id: string; title: string; slug: string }[]>
 
     expect(res.status).toBe(200)
     expect(body.ok).toBe(true)

@@ -106,7 +106,7 @@ export interface ContentfulPhotoFields {
   iso?: number
   focalLength?: string
   tags?: string[]
-  collections?: Array<{ sys: { type: 'Link'; linkType: 'Entry'; id: string } }>
+  collections?: { sys: { type: 'Link'; linkType: 'Entry'; id: string } }[]
   featured?: boolean
   displayOrder?: number
 }
