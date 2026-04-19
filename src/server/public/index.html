@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Portfolio Tools — Review</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        background: #fafafa;
+        color: #1a1a1a;
+        line-height: 1.5;
+      }
+
+      header {
+        background: #fff;
+        border-bottom: 1px solid #e5e5e5;
+        padding: 16px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      header h1 {
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+
+      .status-bar {
+        display: flex;
+        gap: 16px;
+        font-size: 13px;
+        color: #666;
+      }
+
+      .status-bar span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+
+      .dot-pending {
+        background: #f59e0b;
+      }
+      .dot-approved {
+        background: #10b981;
+      }
+      .dot-published {
+        background: #6366f1;
+      }
+
+      .filters {
+        padding: 12px 24px;
+        background: #fff;
+        border-bottom: 1px solid #e5e5e5;
+        display: flex;
+        gap: 8px;
+      }
+
+      .filter-btn {
+        padding: 4px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: #fff;
+        cursor: pointer;
+        font-size: 13px;
+      }
+
+      .filter-btn.active {
+        background: #1a1a1a;
+        color: #fff;
+        border-color: #1a1a1a;
+      }
+
+      main {
+        padding: 24px;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+        gap: 20px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .card-image {
+        width: 100%;
+        height: 240px;
+        object-fit: cover;
+        display: block;
+        background: #f0f0f0;
+      }
+
+      .card-body {
+        padding: 16px;
+      }
+
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 8px;
+      }
+
+      .card-title {
+        font-size: 15px;
+        font-weight: 600;
+        flex: 1;
+      }
+
+      .card-title input {
+        width: 100%;
+        font-size: 15px;
+        font-weight: 600;
+        border: none;
+        border-bottom: 1px solid transparent;
+        padding: 0;
+        background: transparent;
+      }
+
+      .card-title input:hover {
+        border-bottom-color: #ddd;
+      }
+      .card-title input:focus {
+        outline: none;
+        border-bottom-color: #1a1a1a;
+      }
+
+      .badge {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 2px 8px;
+        border-radius: 3px;
+        white-space: nowrap;
+        margin-left: 8px;
+      }
+
+      .badge-pending {
+        background: #fef3c7;
+        color: #92400e;
+      }
+      .badge-approved {
+        background: #d1fae5;
+        color: #065f46;
+      }
+      .badge-published {
+        background: #e0e7ff;
+        color: #3730a3;
+      }
+
+      .card-caption {
+        font-size: 13px;
+        color: #555;
+        margin-bottom: 8px;
+      }
+
+      .card-caption textarea {
+        width: 100%;
+        font-size: 13px;
+        color: #555;
+        border: none;
+        border-bottom: 1px solid transparent;
+        padding: 0;
+        background: transparent;
+        resize: vertical;
+        min-height: 40px;
+        font-family: inherit;
+        line-height: 1.5;
+      }
+
+      .card-caption textarea:hover {
+        border-bottom-color: #ddd;
+      }
+      .card-caption textarea:focus {
+        outline: none;
+        border-bottom-color: #1a1a1a;
+      }
+
+      .card-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-bottom: 12px;
+      }
+
+      .tag {
+        font-size: 11px;
+        padding: 2px 8px;
+        background: #f3f4f6;
+        border-radius: 3px;
+        color: #555;
+      }
+
+      .card-exif {
+        font-size: 11px;
+        color: #999;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .card-exif span {
+        white-space: nowrap;
+      }
+
+      .card-actions {
+        padding: 12px 16px;
+        border-top: 1px solid #f0f0f0;
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      .btn {
+        padding: 6px 16px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      .btn:hover {
+        background: #f5f5f5;
+      }
+
+      .btn-approve {
+        background: #10b981;
+        color: #fff;
+        border-color: #10b981;
+      }
+
+      .btn-approve:hover {
+        background: #059669;
+      }
+
+      .btn-publish {
+        background: #6366f1;
+        color: #fff;
+        border-color: #6366f1;
+      }
+
+      .btn-publish:hover {
+        background: #4f46e5;
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .empty {
+        text-align: center;
+        padding: 80px 24px;
+        color: #999;
+      }
+
+      .empty p {
+        margin-top: 8px;
+        font-size: 14px;
+      }
+
+      .collection-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #999;
+        margin-bottom: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>PORTFOLIO TOOLS</h1>
+      <div class="status-bar" id="statusBar"></div>
+    </header>
+    <div class="filters" id="filters"></div>
+    <main>
+      <div class="grid" id="grid"></div>
+      <div class="empty" id="empty" style="display: none">
+        <h2>No photos found</h2>
+        <p>Add photos to your watch directory and run <code>npm run analyze</code></p>
+      </div>
+    </main>
+
+    <script>
+      let photos = []
+      let currentFilter = 'all'
+
+      async function loadPhotos() {
+        try {
+          const res = await fetch('/api/photos')
+          const json = await res.json()
+          if (json.ok) {
+            photos = json.data
+            render()
+          }
+        } catch (e) {
+          console.error('Failed to load photos:', e)
+        }
+      }
+
+      function render() {
+        const filtered =
+          currentFilter === 'all'
+            ? photos
+            : photos.filter((p) => p.sidecar.status === currentFilter)
+
+        renderStatusBar()
+        renderFilters()
+        renderGrid(filtered)
+      }
+
+      function renderStatusBar() {
+        const counts = { pending: 0, approved: 0, published: 0 }
+        photos.forEach((p) => counts[p.sidecar.status]++)
+
+        document.getElementById('statusBar').innerHTML = `
+        <span><span class="dot dot-pending"></span> ${counts.pending} pending</span>
+        <span><span class="dot dot-approved"></span> ${counts.approved} approved</span>
+        <span><span class="dot dot-published"></span> ${counts.published} published</span>
+      `
+      }
+
+      function renderFilters() {
+        const statuses = ['all', 'pending', 'approved', 'published']
+        document.getElementById('filters').innerHTML = statuses
+          .map(
+            (s) =>
+              `<button class="filter-btn ${s === currentFilter ? 'active' : ''}"
+                 onclick="setFilter('${s}')">${s}</button>`,
+          )
+          .join('')
+      }
+
+      function setFilter(f) {
+        currentFilter = f
+        render()
+      }
+
+      function renderGrid(items) {
+        const grid = document.getElementById('grid')
+        const empty = document.getElementById('empty')
+
+        if (items.length === 0) {
+          grid.innerHTML = ''
+          empty.style.display = 'block'
+          return
+        }
+
+        empty.style.display = 'none'
+        grid.innerHTML = items
+          .map((photo) => {
+            const s = photo.sidecar
+            const exifParts = [
+              s.exif.camera,
+              s.exif.lens,
+              s.exif.aperture,
+              s.exif.shutterSpeed,
+              s.exif.iso ? `ISO ${s.exif.iso}` : null,
+              s.exif.focalLength,
+            ].filter(Boolean)
+
+            return `
+          <div class="card" data-collection="${photo.collection}" data-filename="${s.source}">
+            <img class="card-image"
+                 src="/api/thumbnail/${photo.collection}/${s.source}"
+                 alt="${s.ai.title}"
+                 loading="lazy">
+            <div class="card-body">
+              <div class="collection-label">${photo.collection}</div>
+              <div class="card-header">
+                <div class="card-title">
+                  <input type="text" value="${escHtml(s.ai.title)}"
+                         onchange="updateField('${photo.collection}', '${s.source}', 'title', this.value)">
+                </div>
+                <span class="badge badge-${s.status}">${s.status}</span>
+              </div>
+              <div class="card-caption">
+                <textarea onchange="updateField('${photo.collection}', '${s.source}', 'caption', this.value)"
+                >${escHtml(s.ai.caption)}</textarea>
+              </div>
+              <div class="card-tags">
+                ${s.ai.tags.map((t) => `<span class="tag">${escHtml(t)}</span>`).join('')}
+              </div>
+              ${
+                exifParts.length > 0
+                  ? `
+                <div class="card-exif">
+                  ${exifParts.map((p) => `<span>${escHtml(p)}</span>`).join('')}
+                </div>
+              `
+                  : ''
+              }
+            </div>
+            <div class="card-actions">
+              ${
+                s.status === 'pending'
+                  ? `
+                <button class="btn btn-approve"
+                        onclick="approvePhoto('${photo.collection}', '${s.source}')">
+                  Approve
+                </button>
+              `
+                  : ''
+              }
+              ${
+                s.status === 'approved'
+                  ? `
+                <button class="btn btn-publish"
+                        onclick="publishPhotoAction('${photo.collection}', '${s.source}')">
+                  Publish to Contentful
+                </button>
+              `
+                  : ''
+              }
+            </div>
+          </div>
+        `
+          })
+          .join('')
+      }
+
+      function escHtml(str) {
+        if (!str) return ''
+        return str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+      }
+
+      async function updateField(collection, filename, field, value) {
+        const body = {}
+        body[field] = field === 'tags' ? value.split(',').map((t) => t.trim()) : value
+        await fetch(`/api/photos/${collection}/${filename}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+      }
+
+      async function approvePhoto(collection, filename) {
+        const res = await fetch(`/api/photos/${collection}/${filename}/approve`, { method: 'POST' })
+        const json = await res.json()
+        if (json.ok) await loadPhotos()
+      }
+
+      async function publishPhotoAction(collection, filename) {
+        const btn = event.target
+        btn.disabled = true
+        btn.textContent = 'Publishing...'
+
+        try {
+          const res = await fetch(`/api/photos/${collection}/${filename}/publish`, {
+            method: 'POST',
+          })
+          const json = await res.json()
+          if (json.ok) {
+            await loadPhotos()
+          } else {
+            alert('Publish failed: ' + json.error)
+          }
+        } catch (e) {
+          alert('Publish failed: ' + e.message)
+        } finally {
+          btn.disabled = false
+          btn.textContent = 'Publish to Contentful'
+        }
+      }
+
+      loadPhotos()
+    </script>
+  </body>
+</html>
