@@ -31,8 +31,9 @@ export function startWatcher(config: Config) {
     await processNewPhoto(filePath, config)
   })
 
-  watcher.on('error', (error: Error) => {
-    console.error('Watcher error:', error.message)
+  watcher.on('error', (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('Watcher error:', message)
   })
 
   return watcher
