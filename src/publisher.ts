@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs'
 import { basename, extname } from 'node:path'
-import { createClient } from 'contentful-management'
+import contentful from 'contentful-management'
 import slugify from 'slugify'
 import type { Config } from './config.js'
 import type { Sidecar } from './types.js'
@@ -14,7 +14,9 @@ interface PublishResult {
 }
 
 async function getCmaEnvironment(config: Config) {
-  const client = createClient({ accessToken: config.contentful.managementToken })
+  const client = contentful.createClient({
+    accessToken: config.contentful.managementToken,
+  })
   const space = await client.getSpace(config.contentful.spaceId)
   return space.getEnvironment(config.contentful.environment)
 }
@@ -82,7 +84,15 @@ export async function publishPhoto(
       ...(collectionId
         ? {
             collections: {
-              'en-US': [{ sys: { type: 'Link', linkType: 'Entry', id: collectionId } }],
+              'en-US': [
+                {
+                  sys: {
+                    type: 'Link',
+                    linkType: 'Entry',
+                    id: collectionId,
+                  },
+                },
+              ],
             },
           }
         : {}),
@@ -104,7 +114,9 @@ export async function listCollections(
 ): Promise<Array<{ id: string; title: string; slug: string }>> {
   const env = await getCmaEnvironment(config)
 
-  const entries = await env.getEntries({ content_type: COLLECTION_CONTENT_TYPE })
+  const entries = await env.getEntries({
+    content_type: COLLECTION_CONTENT_TYPE,
+  })
 
   return entries.items.map((entry) => ({
     id: entry.sys.id,
