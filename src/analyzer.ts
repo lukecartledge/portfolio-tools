@@ -1,7 +1,7 @@
 import exifr from 'exifr'
 import sharp from 'sharp'
 import Anthropic from '@anthropic-ai/sdk'
-import type { ExifData, AiMetadata } from './types.js'
+import type { ExifData, AiMetadata, VisionContext } from './types.js'
 import { VISION_MODEL, VISION_MAX_DIMENSION } from './config.js'
 
 export async function extractExif(filePath: string): Promise<ExifData> {
@@ -36,13 +36,31 @@ export async function extractExif(filePath: string): Promise<ExifData> {
   }
 }
 
-export async function analyzeWithVision(filePath: string, apiKey: string): Promise<AiMetadata> {
+export async function analyzeWithVision(
+  filePath: string,
+  apiKey: string,
+  context?: VisionContext,
+): Promise<AiMetadata> {
   const resized = await sharp(filePath)
     .resize(VISION_MAX_DIMENSION, VISION_MAX_DIMENSION, { fit: 'inside', withoutEnlargement: true })
     .jpeg({ quality: 85 })
     .toBuffer()
 
   const base64 = resized.toString('base64')
+
+  const contextLines: string[] = []
+  if (context) {
+    contextLines.push(`- Collection: "${context.collection}"`)
+    contextLines.push(`- Filename: "${context.filename}"`)
+    if (context.dateTaken) contextLines.push(`- Date taken: ${context.dateTaken}`)
+    if (context.gps)
+      contextLines.push(`- GPS coordinates: ${context.gps.lat}, ${context.gps.lng}`)
+  }
+
+  const contextBlock =
+    contextLines.length > 0
+      ? `\n\nContext about this photo:\n${contextLines.join('\n')}\n`
+      : ''
 
   const client = new Anthropic({ apiKey })
   const response = await client.messages.create({
@@ -58,8 +76,7 @@ export async function analyzeWithVision(filePath: string, apiKey: string): Promi
           },
           {
             type: 'text',
-            text: `You are cataloging a landscape/travel photograph for a portfolio website.
-
+            text: `You are cataloging a landscape/travel photograph for a portfolio website.${contextBlock}
 Respond with ONLY valid JSON, no markdown fencing:
 {
   "title": "Short evocative title (3-7 words, no quotes in the title)",
@@ -75,10 +92,18 @@ Respond with ONLY valid JSON, no markdown fencing:
   const text = response.content[0]?.type === 'text' ? response.content[0].text : ''
   const parsed = JSON.parse(text) as { title: string; caption: string; tags: string[] }
 
+  const tags = [...parsed.tags]
+  if (context) {
+    const collectionTag = deriveCollectionTag(context.collection)
+    if (collectionTag && !tags.includes(collectionTag)) {
+      tags.push(collectionTag)
+    }
+  }
+
   return {
     title: parsed.title,
     caption: parsed.caption,
-    tags: parsed.tags,
+    tags,
     model: VISION_MODEL,
     generatedAt: new Date().toISOString(),
   }
