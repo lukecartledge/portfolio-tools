@@ -34,7 +34,9 @@ vi.mock('@anthropic-ai/sdk', () => {
 import exifr from 'exifr'
 import sharp from 'sharp'
 
-const { extractExif, analyzeWithVision, analyzePhoto } = await import('./analyzer.js')
+const { extractExif, analyzeWithVision, analyzePhoto, deriveCollectionTag } = await import(
+  './analyzer.js'
+)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -253,5 +255,31 @@ describe('analyzePhoto', () => {
     expect(result.exif.iso).toBe(100)
     expect(result.ai.title).toBe('Test Photo')
     expect(result.ai.tags).toEqual(['test'])
+  })
+})
+
+describe('deriveCollectionTag', () => {
+  it('lowercases and hyphenates a collection name', () => {
+    expect(deriveCollectionTag('New Zealand')).toBe('new-zealand')
+  })
+
+  it('handles already-lowercase names', () => {
+    expect(deriveCollectionTag('iceland')).toBe('iceland')
+  })
+
+  it('strips leading and trailing hyphens', () => {
+    expect(deriveCollectionTag('--Mountains--')).toBe('mountains')
+  })
+
+  it('collapses multiple non-alphanumeric characters', () => {
+    expect(deriveCollectionTag('South East   Asia')).toBe('south-east-asia')
+  })
+
+  it('handles names with special characters', () => {
+    expect(deriveCollectionTag("Milford Sound (NZ)")).toBe('milford-sound-nz')
+  })
+
+  it('preserves numbers in names', () => {
+    expect(deriveCollectionTag('Route 66')).toBe('route-66')
   })
 })

@@ -92,6 +92,14 @@ export async function analyzePhoto(
   return { exif, ai }
 }
 
+/** Derive a lowercase-hyphenated tag from a collection folder name */
+export function deriveCollectionTag(collection: string): string {
+  return collection
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
 function emptyExif(): ExifData {
   return {
     camera: null,

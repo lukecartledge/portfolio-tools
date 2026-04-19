@@ -22,6 +22,14 @@ export interface AiMetadata {
   generatedAt: string
 }
 
+/** Context passed to AI vision for richer output */
+export interface VisionContext {
+  collection: string
+  filename: string
+  dateTaken?: string | null
+  gps?: { lat: number; lng: number } | null
+}
+
 /** Human corrections to AI-generated metadata */
 export interface UserEdits {
   title?: string
