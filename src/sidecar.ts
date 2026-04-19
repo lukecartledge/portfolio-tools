@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import type { Sidecar, UserEdits } from './types.js'
-import { CURRENT_SCHEMA_VERSION } from './types.js'
+import { CURRENT_SCHEMA_VERSION, emptyExif } from './types.js'
 
 export function sidecarPathFor(photoPath: string): string {
   return photoPath.replace(/\.[^.]+$/, '.json')
@@ -51,16 +51,7 @@ export function createEmptySidecar(source: string, collection: string): Sidecar 
     status: 'pending',
     source,
     collection,
-    exif: {
-      camera: null,
-      lens: null,
-      aperture: null,
-      shutterSpeed: null,
-      iso: null,
-      focalLength: null,
-      dateTaken: null,
-      gps: null,
-    },
+    exif: emptyExif(),
     ai: {
       title: '',
       caption: '',
