@@ -226,6 +226,34 @@ describe('PATCH /api/photos/:collection/:filename', () => {
     const patchCall = vi.mocked(patchSidecar).mock.calls[0]
     expect(patchCall?.[1]).toEqual({ status: 'approved' })
   })
+
+  it('round-trips tags through PATCH and GET with effective merge', async () => {
+    const editedTags = ['edited-tag', 'new-tag']
+    const editedSidecar = makeSidecar({
+      userEdits: { tags: editedTags },
+    })
+
+    vi.mocked(hasSidecar).mockReturnValue(true)
+    vi.mocked(patchSidecar).mockResolvedValue(editedSidecar)
+
+    const patchRes = await app.request('/api/photos/iceland/aurora.jpg', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags: editedTags }),
+    })
+    const patchBody = (await patchRes.json()) as ApiResponse<{ status: string }>
+    expect(patchBody.ok).toBe(true)
+
+    const patchCall = vi.mocked(patchSidecar).mock.calls[0]
+    expect(patchCall?.[1]).toEqual({ userEdits: { tags: editedTags } })
+
+    setupScanMocks(editedSidecar)
+
+    const getRes = await app.request('/api/photos')
+    const getBody = (await getRes.json()) as ApiResponse<PhotoWithMetadata[]>
+
+    expect(getBody.data![0]!.effective.tags).toEqual(editedTags)
+  })
 })
 
 describe('POST /api/photos/:collection/:filename/approve', () => {
