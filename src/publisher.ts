@@ -246,6 +246,65 @@ export async function createCollection(config: Config, title: string): Promise<s
   return entry.sys.id
 }
 
+export async function updateCollectionWithPhoto(
+  config: Config,
+  collectionId: string,
+  photoEntryId: string,
+  assetId: string,
+): Promise<void> {
+  const client = getClient(config)
+
+  const collection = await withRetry(() => client.entry.get({ entryId: collectionId }), {
+    ...retryOpts,
+    label: 'Contentful entry.get (collection)',
+  })
+
+  type Link = { sys: { type: string; linkType: string; id: string } }
+  const photosField = collection.fields.photos as Record<string, Link[]> | undefined
+  const existingPhotos = photosField?.[CONTENTFUL_LOCALE] ?? []
+
+  // Idempotent: skip if photo already linked
+  if (existingPhotos.some((p) => p.sys.id === photoEntryId)) {
+    return
+  }
+
+  const updatedFields: Record<string, unknown> = {
+    ...collection.fields,
+    photos: {
+      [CONTENTFUL_LOCALE]: [
+        ...existingPhotos,
+        { sys: { type: 'Link', linkType: 'Entry', id: photoEntryId } },
+      ],
+    },
+  }
+
+  // Set coverPhoto to this photo if not already set
+  const coverField = collection.fields.coverPhoto as Record<string, Link> | undefined
+  if (!coverField?.[CONTENTFUL_LOCALE]) {
+    updatedFields.coverPhoto = {
+      [CONTENTFUL_LOCALE]: { sys: { type: 'Link', linkType: 'Entry', id: photoEntryId } },
+    }
+  }
+
+  // Set seoOgImage to the photo's asset if not already set
+  const seoOgField = collection.fields.seoOgImage as Record<string, Link> | undefined
+  if (!seoOgField?.[CONTENTFUL_LOCALE]) {
+    updatedFields.seoOgImage = {
+      [CONTENTFUL_LOCALE]: { sys: { type: 'Link', linkType: 'Asset', id: assetId } },
+    }
+  }
+
+  const updated = await withRetry(
+    () => client.entry.update({ entryId: collectionId }, { ...collection, fields: updatedFields }),
+    { ...retryOpts, label: 'Contentful entry.update (collection)' },
+  )
+
+  await withRetry(() => client.entry.publish({ entryId: collectionId }, updated), {
+    ...retryOpts,
+    label: 'Contentful entry.publish (collection)',
+  })
+}
+
 async function resolveCollection(
   client: PlainClientAPI,
   collectionName: string,
