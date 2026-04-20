@@ -64,3 +64,7 @@ export const WRITE_STABILITY_THRESHOLD = parseInt(
 
 /** Chokidar poll interval (ms) */
 export const WRITE_POLL_INTERVAL = 500
+
+export const MAX_RETRIES = parseInt(optionalEnv('MAX_RETRIES', '3'), 10)
+
+export const RETRY_BASE_DELAY_MS = parseInt(optionalEnv('RETRY_BASE_DELAY_MS', '1000'), 10)
