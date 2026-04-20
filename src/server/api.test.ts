@@ -235,6 +235,32 @@ describe('PATCH /api/photos/:collection/:filename', () => {
     expect(patchCall?.[1]).toEqual({ status: 'approved' })
   })
 
+  it('patches SEO fields into user edits', async () => {
+    vi.mocked(hasSidecar).mockReturnValue(true)
+    vi.mocked(patchSidecar).mockResolvedValue(makeSidecar())
+
+    const res = await app.request('/api/photos/iceland/aurora.jpg', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        seoTitle: 'Custom SEO Title',
+        seoDescription: 'Custom SEO description for the photo',
+      }),
+    })
+    const body = (await res.json()) as ApiResponse<{ status: string }>
+
+    expect(res.status).toBe(200)
+    expect(body.ok).toBe(true)
+
+    const patchCall = vi.mocked(patchSidecar).mock.calls[0]
+    expect(patchCall?.[1]).toEqual({
+      userEdits: {
+        seoTitle: 'Custom SEO Title',
+        seoDescription: 'Custom SEO description for the photo',
+      },
+    })
+  })
+
   it('round-trips tags through PATCH and GET with effective merge', async () => {
     const editedTags = ['edited-tag', 'new-tag']
     const editedSidecar = makeSidecar({

@@ -43,6 +43,8 @@ export function createApi(config: Config): Hono {
         title?: string
         caption?: string
         tags?: string[]
+        seoTitle?: string
+        seoDescription?: string
       }>()
       const photoPath = join(config.watchDir, collection, filename)
       const sidecarPath = sidecarPathFor(photoPath)
@@ -55,6 +57,8 @@ export function createApi(config: Config): Hono {
       if (body.title !== undefined) userEdits.title = body.title
       if (body.caption !== undefined) userEdits.caption = body.caption
       if (body.tags !== undefined) userEdits.tags = body.tags
+      if (body.seoTitle !== undefined) userEdits.seoTitle = body.seoTitle
+      if (body.seoDescription !== undefined) userEdits.seoDescription = body.seoDescription
 
       const hasEdits = Object.keys(userEdits).length > 0
 
