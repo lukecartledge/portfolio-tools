@@ -6,9 +6,16 @@ import slugify from 'slugify'
 import type { Config } from './config.js'
 import type { Sidecar } from './types.js'
 import { mergeMetadata } from './types.js'
-import { CONTENTFUL_LOCALE, PHOTO_CONTENT_TYPE, COLLECTION_CONTENT_TYPE } from './config.js'
+import {
+  CONTENTFUL_LOCALE,
+  PHOTO_CONTENT_TYPE,
+  COLLECTION_CONTENT_TYPE,
+  MAX_RETRIES,
+  RETRY_BASE_DELAY_MS,
+} from './config.js'
+import { withRetry } from './retry.js'
 
-const CONTENTFUL_RATE_LIMIT_DELAY_MS = 150
+const retryOpts = { maxRetries: MAX_RETRIES, baseDelayMs: RETRY_BASE_DELAY_MS }
 
 interface PublishResult {
   assetId: string
@@ -46,83 +53,99 @@ export async function publishPhoto(
   const fileName = basename(filePath)
   const contentType = mimeTypeFor(extname(filePath))
 
-  const upload = (await client.upload.create({}, { file: createReadStream(filePath) })) as {
-    sys: { id: string }
-  }
-  await delay(CONTENTFUL_RATE_LIMIT_DELAY_MS)
+  const upload = (await withRetry(
+    () => client.upload.create({}, { file: createReadStream(filePath) }),
+    { ...retryOpts, label: 'Contentful upload.create' },
+  )) as { sys: { id: string } }
 
-  const asset = await client.asset.create(
-    {},
-    {
-      fields: {
-        title: { [CONTENTFUL_LOCALE]: effective.title },
-        file: {
-          [CONTENTFUL_LOCALE]: {
-            contentType,
-            fileName,
-            uploadFrom: {
-              sys: { type: 'Link', linkType: 'Upload', id: upload.sys.id },
+  const asset = await withRetry(
+    () =>
+      client.asset.create(
+        {},
+        {
+          fields: {
+            title: { [CONTENTFUL_LOCALE]: effective.title },
+            file: {
+              [CONTENTFUL_LOCALE]: {
+                contentType,
+                fileName,
+                uploadFrom: {
+                  sys: { type: 'Link', linkType: 'Upload', id: upload.sys.id },
+                },
+              },
             },
           },
         },
-      },
-    },
+      ),
+    { ...retryOpts, label: 'Contentful asset.create' },
   )
-  await delay(CONTENTFUL_RATE_LIMIT_DELAY_MS)
 
-  await client.asset.processForAllLocales({}, asset)
+  await withRetry(() => client.asset.processForAllLocales({}, asset), {
+    ...retryOpts,
+    label: 'Contentful asset.processForAllLocales',
+  })
   await waitForAssetProcessing(client, asset.sys.id)
-  await delay(CONTENTFUL_RATE_LIMIT_DELAY_MS)
 
-  const latestAsset = await client.asset.get({ assetId: asset.sys.id })
-  await client.asset.publish({ assetId: latestAsset.sys.id }, latestAsset)
-  await delay(CONTENTFUL_RATE_LIMIT_DELAY_MS)
+  const latestAsset = await withRetry(() => client.asset.get({ assetId: asset.sys.id }), {
+    ...retryOpts,
+    label: 'Contentful asset.get',
+  })
+  await withRetry(() => client.asset.publish({ assetId: latestAsset.sys.id }, latestAsset), {
+    ...retryOpts,
+    label: 'Contentful asset.publish',
+  })
 
   const collectionId = await resolveCollection(client, sidecar.collection)
 
   const slug = slugify(effective.title, { lower: true, strict: true })
-  const entry = await client.entry.create(
-    { contentTypeId: PHOTO_CONTENT_TYPE },
-    {
-      fields: {
-        title: { [CONTENTFUL_LOCALE]: effective.title },
-        slug: { [CONTENTFUL_LOCALE]: slug },
-        image: {
-          [CONTENTFUL_LOCALE]: {
-            sys: { type: 'Link', linkType: 'Asset', id: latestAsset.sys.id },
+  const entry = await withRetry(
+    () =>
+      client.entry.create(
+        { contentTypeId: PHOTO_CONTENT_TYPE },
+        {
+          fields: {
+            title: { [CONTENTFUL_LOCALE]: effective.title },
+            slug: { [CONTENTFUL_LOCALE]: slug },
+            image: {
+              [CONTENTFUL_LOCALE]: {
+                sys: { type: 'Link', linkType: 'Asset', id: latestAsset.sys.id },
+              },
+            },
+            caption: localField(effective.caption || null),
+            dateTaken: localField(sidecar.exif.dateTaken),
+            camera: localField(sidecar.exif.camera),
+            lens: localField(sidecar.exif.lens),
+            aperture: localField(sidecar.exif.aperture),
+            shutterSpeed: localField(sidecar.exif.shutterSpeed),
+            iso: localField(sidecar.exif.iso),
+            focalLength: localField(sidecar.exif.focalLength),
+            tags: effective.tags.length > 0 ? { [CONTENTFUL_LOCALE]: effective.tags } : undefined,
+            ...(collectionId
+              ? {
+                  collections: {
+                    [CONTENTFUL_LOCALE]: [
+                      {
+                        sys: {
+                          type: 'Link',
+                          linkType: 'Entry',
+                          id: collectionId,
+                        },
+                      },
+                    ],
+                  },
+                }
+              : {}),
+            featured: { [CONTENTFUL_LOCALE]: false },
           },
         },
-        caption: localField(effective.caption || null),
-        dateTaken: localField(sidecar.exif.dateTaken),
-        camera: localField(sidecar.exif.camera),
-        lens: localField(sidecar.exif.lens),
-        aperture: localField(sidecar.exif.aperture),
-        shutterSpeed: localField(sidecar.exif.shutterSpeed),
-        iso: localField(sidecar.exif.iso),
-        focalLength: localField(sidecar.exif.focalLength),
-        tags: effective.tags.length > 0 ? { [CONTENTFUL_LOCALE]: effective.tags } : undefined,
-        ...(collectionId
-          ? {
-              collections: {
-                [CONTENTFUL_LOCALE]: [
-                  {
-                    sys: {
-                      type: 'Link',
-                      linkType: 'Entry',
-                      id: collectionId,
-                    },
-                  },
-                ],
-              },
-            }
-          : {}),
-        featured: { [CONTENTFUL_LOCALE]: false },
-      },
-    },
+      ),
+    { ...retryOpts, label: 'Contentful entry.create' },
   )
-  await delay(CONTENTFUL_RATE_LIMIT_DELAY_MS)
 
-  await client.entry.publish({ entryId: entry.sys.id }, entry)
+  await withRetry(() => client.entry.publish({ entryId: entry.sys.id }, entry), {
+    ...retryOpts,
+    label: 'Contentful entry.publish',
+  })
 
   return {
     assetId: latestAsset.sys.id,
@@ -135,9 +158,13 @@ export async function listCollections(
 ): Promise<{ id: string; title: string; slug: string }[]> {
   const client = getClient(config)
 
-  const entries = await client.entry.getMany({
-    query: { content_type: COLLECTION_CONTENT_TYPE },
-  })
+  const entries = await withRetry(
+    () =>
+      client.entry.getMany({
+        query: { content_type: COLLECTION_CONTENT_TYPE },
+      }),
+    { ...retryOpts, label: 'Contentful entry.getMany' },
+  )
 
   return entries.items.map((entry) => ({
     id: entry.sys.id,
@@ -151,17 +178,24 @@ export async function createCollection(config: Config, title: string): Promise<s
 
   const slug = slugify(title, { lower: true, strict: true })
 
-  const entry = await client.entry.create(
-    { contentTypeId: COLLECTION_CONTENT_TYPE },
-    {
-      fields: {
-        title: { [CONTENTFUL_LOCALE]: title },
-        slug: { [CONTENTFUL_LOCALE]: slug },
-      },
-    },
+  const entry = await withRetry(
+    () =>
+      client.entry.create(
+        { contentTypeId: COLLECTION_CONTENT_TYPE },
+        {
+          fields: {
+            title: { [CONTENTFUL_LOCALE]: title },
+            slug: { [CONTENTFUL_LOCALE]: slug },
+          },
+        },
+      ),
+    { ...retryOpts, label: 'Contentful entry.create' },
   )
 
-  await client.entry.publish({ entryId: entry.sys.id }, entry)
+  await withRetry(() => client.entry.publish({ entryId: entry.sys.id }, entry), {
+    ...retryOpts,
+    label: 'Contentful entry.publish',
+  })
   return entry.sys.id
 }
 
@@ -171,13 +205,17 @@ async function resolveCollection(
 ): Promise<string | null> {
   const slug = slugify(collectionName, { lower: true, strict: true })
 
-  const entries = await client.entry.getMany({
-    query: {
-      content_type: COLLECTION_CONTENT_TYPE,
-      'fields.slug': slug,
-      limit: 1,
-    },
-  })
+  const entries = await withRetry(
+    () =>
+      client.entry.getMany({
+        query: {
+          content_type: COLLECTION_CONTENT_TYPE,
+          'fields.slug': slug,
+          limit: 1,
+        },
+      }),
+    { ...retryOpts, label: 'Contentful entry.getMany' },
+  )
 
   if (entries.items.length > 0) {
     const first = entries.items[0]
@@ -193,7 +231,10 @@ async function waitForAssetProcessing(
   maxAttempts = 30,
 ): Promise<void> {
   for (let i = 0; i < maxAttempts; i++) {
-    const asset = await client.asset.get({ assetId })
+    const asset = await withRetry(() => client.asset.get({ assetId }), {
+      ...retryOpts,
+      label: 'Contentful asset.get (polling)',
+    })
     const file = (asset.fields.file as Record<string, unknown>)[CONTENTFUL_LOCALE] as
       | { url?: string }
       | undefined

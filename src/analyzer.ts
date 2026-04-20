@@ -3,7 +3,8 @@ import sharp from 'sharp'
 import Anthropic from '@anthropic-ai/sdk'
 import type { ExifData, AiMetadata, VisionContext } from './types.js'
 import { emptyExif } from './types.js'
-import { VISION_MODEL, VISION_MAX_DIMENSION } from './config.js'
+import { VISION_MODEL, VISION_MAX_DIMENSION, MAX_RETRIES, RETRY_BASE_DELAY_MS } from './config.js'
+import { withRetry } from './retry.js'
 
 interface ExifrResult {
   Make?: string
@@ -75,31 +76,39 @@ export async function analyzeWithVision(
     contextLines.length > 0 ? `\n\nContext about this photo:\n${contextLines.join('\n')}\n` : ''
 
   const client = new Anthropic({ apiKey })
-  const response = await client.messages.create({
-    model: VISION_MODEL,
-    max_tokens: 1024,
-    messages: [
-      {
-        role: 'user',
-        content: [
+  const response = await withRetry(
+    () =>
+      client.messages.create({
+        model: VISION_MODEL,
+        max_tokens: 1024,
+        messages: [
           {
-            type: 'image',
-            source: { type: 'base64', media_type: 'image/jpeg', data: base64 },
-          },
-          {
-            type: 'text',
-            text: `You are cataloging a landscape/travel photograph for a portfolio website.${contextBlock}
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: { type: 'base64', media_type: 'image/jpeg', data: base64 },
+              },
+              {
+                type: 'text',
+                text: `You are cataloging a landscape/travel photograph for a portfolio website.${contextBlock}
 Respond with ONLY valid JSON, no markdown fencing:
 {
   "title": "Short evocative title (3-7 words, no quotes in the title)",
   "caption": "One or two sentences describing the scene, mood, and notable elements. Written for a photography portfolio — concise, atmospheric, not technical.",
   "tags": ["tag1", "tag2", ...] // 4-8 lowercase single-word or hyphenated tags (e.g. "landscape", "golden-hour", "mountains")
 }`,
+              },
+            ],
           },
         ],
-      },
-    ],
-  })
+      }),
+    {
+      maxRetries: MAX_RETRIES,
+      baseDelayMs: RETRY_BASE_DELAY_MS,
+      label: 'Anthropic messages.create',
+    },
+  )
 
   const text = response.content[0]?.type === 'text' ? response.content[0].text : ''
   const parsed = JSON.parse(text) as { title: string; caption: string; tags: string[] }
