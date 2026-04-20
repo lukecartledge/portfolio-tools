@@ -14,7 +14,8 @@
     "build": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "prettier --check . && eslint src/ && tsc --noEmit"
+    "lint": "prettier --check . && eslint src/ && tsc --noEmit",
+    "setup": "tsx src/setup.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
