@@ -5,7 +5,13 @@ import slugify from 'slugify'
 import type { Config } from '../config.js'
 import { IMAGE_EXTENSIONS } from '../config.js'
 import { hasSidecar, sidecarPathFor, readSidecar, markPublished } from '../sidecar.js'
-import { publishPhoto, checkSlugExists, findCollection, createCollection } from '../publisher.js'
+import {
+  publishPhoto,
+  checkSlugExists,
+  findCollection,
+  createCollection,
+  updateCollectionWithPhoto,
+} from '../publisher.js'
 import { errorMessage, toCollectionTitle } from '../utils.js'
 import { mergeMetadata } from '../types.js'
 import type { Sidecar } from '../types.js'
@@ -68,6 +74,9 @@ async function publishSinglePhoto(
 
   try {
     const result = await publishPhoto(photo.filePath, photo.sidecar, config, { collectionId })
+    if (collectionId) {
+      await updateCollectionWithPhoto(config, collectionId, result.entryId, result.assetId)
+    }
     await markPublished(photo.sidecarPath, photo.sidecar, result)
     s.stop(`Published: ${effective.title} (${result.entryId})`)
     return true

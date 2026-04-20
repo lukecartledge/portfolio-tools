@@ -14,8 +14,14 @@ import {
   patchSidecar,
   markPublished,
 } from '../sidecar.js'
-import { publishPhoto, createCollection, listCollections } from '../publisher.js'
-import { errorMessage } from '../utils.js'
+import {
+  publishPhoto,
+  createCollection,
+  listCollections,
+  findCollection,
+  updateCollectionWithPhoto,
+} from '../publisher.js'
+import { errorMessage, toCollectionTitle } from '../utils.js'
 
 export function createApi(config: Config): Hono {
   const app = new Hono()
@@ -94,7 +100,14 @@ export function createApi(config: Config): Hono {
         )
       }
 
-      const result = await publishPhoto(photoPath, sidecar, config)
+      // Resolve or create collection in Contentful
+      const collectionTitle = toCollectionTitle(collection)
+      const collectionId =
+        (await findCollection(config, collection)) ??
+        (await createCollection(config, collectionTitle))
+
+      const result = await publishPhoto(photoPath, sidecar, config, { collectionId })
+      await updateCollectionWithPhoto(config, collectionId, result.entryId, result.assetId)
       await markPublished(sidecarPath, sidecar, result)
 
       return c.json<ApiResponse<typeof result>>({ ok: true, data: result })
