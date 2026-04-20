@@ -153,6 +153,29 @@ export async function publishPhoto(
   }
 }
 
+export async function checkSlugExists(config: Config, slug: string): Promise<string | null> {
+  const client = getClient(config)
+
+  const entries = await withRetry(
+    () =>
+      client.entry.getMany({
+        query: {
+          content_type: PHOTO_CONTENT_TYPE,
+          'fields.slug': slug,
+          limit: 1,
+        },
+      }),
+    { ...retryOpts, label: 'Contentful entry.getMany (slug check)' },
+  )
+
+  if (entries.items.length > 0) {
+    const first = entries.items[0]
+    if (first) return first.sys.id
+  }
+
+  return null
+}
+
 export async function listCollections(
   config: Config,
 ): Promise<{ id: string; title: string; slug: string }[]> {

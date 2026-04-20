@@ -67,7 +67,8 @@ vi.mock('contentful-management', () => ({
   createClient: vi.fn(() => mockClient),
 }))
 
-const { publishPhoto, listCollections, createCollection } = await import('./publisher.js')
+const { publishPhoto, listCollections, createCollection, checkSlugExists } =
+  await import('./publisher.js')
 
 function makeConfig(): Config {
   return {
@@ -403,5 +404,32 @@ describe('createCollection', () => {
       { sys: { id: 'new-collection-1' } },
     )
     expect(id).toBe('new-collection-1')
+  })
+})
+
+describe('checkSlugExists', () => {
+  it('returns entryId when slug matches an existing photo', async () => {
+    mockEntryGetMany.mockResolvedValue({
+      items: [{ sys: { id: 'existing-photo-1' } }],
+    })
+
+    const result = await checkSlugExists(makeConfig(), 'northern-lights')
+
+    expect(result).toBe('existing-photo-1')
+    expect(mockEntryGetMany).toHaveBeenCalledWith({
+      query: {
+        content_type: 'photo',
+        'fields.slug': 'northern-lights',
+        limit: 1,
+      },
+    })
+  })
+
+  it('returns null when no matching slug exists', async () => {
+    mockEntryGetMany.mockResolvedValue({ items: [] })
+
+    const result = await checkSlugExists(makeConfig(), 'nonexistent-slug')
+
+    expect(result).toBeNull()
   })
 })

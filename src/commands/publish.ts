@@ -1,10 +1,11 @@
 import { readdir, stat } from 'node:fs/promises'
 import { join, extname } from 'node:path'
 import { multiselect, confirm, spinner, isCancel, cancel } from '@clack/prompts'
+import slugify from 'slugify'
 import type { Config } from '../config.js'
 import { IMAGE_EXTENSIONS } from '../config.js'
 import { hasSidecar, sidecarPathFor, readSidecar, markPublished } from '../sidecar.js'
-import { publishPhoto } from '../publisher.js'
+import { publishPhoto, checkSlugExists } from '../publisher.js'
 import { errorMessage } from '../utils.js'
 import { mergeMetadata } from '../types.js'
 import type { Sidecar } from '../types.js'
@@ -146,6 +147,32 @@ export async function runPublish(config: Config, options: PublishOptions): Promi
       )
       skipped++
       continue
+    }
+
+    if (!options.force) {
+      const effective = mergeMetadata(photo.sidecar.ai, photo.sidecar.userEdits)
+      const slug = slugify(effective.title, { lower: true, strict: true })
+      const existingEntryId = await checkSlugExists(config, slug)
+
+      if (existingEntryId) {
+        if (options.all || !process.stdout.isTTY) {
+          log.warn(
+            `Skipping: ${photo.collection}/${photo.filename} — slug "${slug}" already exists in Contentful (entryId: ${existingEntryId}). Use --force to re-publish.`,
+          )
+          skipped++
+          continue
+        }
+
+        const proceed = await confirm({
+          message: `"${slug}" already exists in Contentful (entryId: ${existingEntryId}). Publish anyway?`,
+        })
+
+        if (isCancel(proceed) || !proceed) {
+          log.info(`Skipped: ${photo.collection}/${photo.filename}`)
+          skipped++
+          continue
+        }
+      }
     }
 
     const ok = await publishSinglePhoto(photo, config)
