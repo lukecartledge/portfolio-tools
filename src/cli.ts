@@ -42,7 +42,7 @@ const COMMAND_DESCRIPTIONS: Record<Command, string> = {
 }
 
 const COMMAND_OPTIONS: Record<Command, string> = {
-  analyze: '',
+  analyze: '  --force          Re-analyze photos that already have sidecars\n',
   watch: '',
   publish:
     '  --dry-run        Show what would be published without publishing\n  --all            Publish all approved photos without prompts\n  --force          Re-publish photos that were already published\n',
@@ -105,7 +105,7 @@ const config = loadConfig()
 
 switch (command) {
   case 'analyze':
-    await runAnalyze(config)
+    await runAnalyze(config, { force: values.force })
     break
   case 'watch':
     runWatch(config)

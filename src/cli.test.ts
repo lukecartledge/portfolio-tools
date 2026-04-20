@@ -63,6 +63,13 @@ describe('CLI flags', () => {
     expect(stdout).toContain('--force')
   })
 
+  test('analyze --help includes --force', async () => {
+    const { stdout, code } = await runCli(['analyze', '--help'])
+    expect(code).toBe(0)
+    expect(stdout).toContain('--force')
+    expect(stdout).toContain('Re-analyze')
+  })
+
   test('dev --help includes --port', async () => {
     const { stdout, code } = await runCli(['dev', '--help'])
     expect(code).toBe(0)
