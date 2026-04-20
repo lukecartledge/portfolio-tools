@@ -22,6 +22,8 @@ describe('mergeMetadata', () => {
       title: 'AI Title',
       caption: 'AI caption text',
       tags: ['landscape', 'mountains'],
+      seoTitle: 'AI Title',
+      seoDescription: 'AI caption text',
     })
   })
 
@@ -33,6 +35,8 @@ describe('mergeMetadata', () => {
       title: 'AI Title',
       caption: 'AI caption text',
       tags: ['landscape', 'mountains'],
+      seoTitle: 'AI Title',
+      seoDescription: 'AI caption text',
     })
   })
 
@@ -45,6 +49,8 @@ describe('mergeMetadata', () => {
       title: 'AI Title',
       caption: 'AI caption text',
       tags: ['landscape', 'mountains'],
+      seoTitle: 'AI Title',
+      seoDescription: 'AI caption text',
     })
   })
 
@@ -88,6 +94,8 @@ describe('mergeMetadata', () => {
       title: 'My Title',
       caption: 'My caption',
       tags: ['custom-tag'],
+      seoTitle: 'AI Title',
+      seoDescription: 'AI caption text',
     })
   })
 
@@ -113,6 +121,56 @@ describe('mergeMetadata', () => {
 
     expect(ai.title).toBe('AI Title')
     expect(ai.tags).toEqual(originalTags)
+  })
+
+  it('uses AI seoTitle and seoDescription when present', () => {
+    const ai = makeAi({ seoTitle: 'SEO Title', seoDescription: 'SEO description' })
+    const result = mergeMetadata(ai)
+
+    expect(result.seoTitle).toBe('SEO Title')
+    expect(result.seoDescription).toBe('SEO description')
+  })
+
+  it('falls back seoTitle to AI title when AI seoTitle is absent', () => {
+    const ai = makeAi()
+    const result = mergeMetadata(ai)
+
+    expect(result.seoTitle).toBe('AI Title')
+  })
+
+  it('falls back seoDescription to AI caption when AI seoDescription is absent', () => {
+    const ai = makeAi()
+    const result = mergeMetadata(ai)
+
+    expect(result.seoDescription).toBe('AI caption text')
+  })
+
+  it('user seoTitle overrides AI seoTitle', () => {
+    const ai = makeAi({ seoTitle: 'AI SEO Title' })
+    const result = mergeMetadata(ai, { seoTitle: 'User SEO Title' })
+
+    expect(result.seoTitle).toBe('User SEO Title')
+  })
+
+  it('user seoDescription overrides AI seoDescription', () => {
+    const ai = makeAi({ seoDescription: 'AI SEO Desc' })
+    const result = mergeMetadata(ai, { seoDescription: 'User SEO Desc' })
+
+    expect(result.seoDescription).toBe('User SEO Desc')
+  })
+
+  it('user seoTitle overrides fallback to AI title', () => {
+    const ai = makeAi()
+    const result = mergeMetadata(ai, { seoTitle: 'Custom SEO' })
+
+    expect(result.seoTitle).toBe('Custom SEO')
+  })
+
+  it('empty string seoTitle is a valid user override', () => {
+    const ai = makeAi({ seoTitle: 'AI SEO Title' })
+    const result = mergeMetadata(ai, { seoTitle: '' })
+
+    expect(result.seoTitle).toBe('')
   })
 })
 

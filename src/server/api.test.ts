@@ -20,6 +20,8 @@ vi.mock('../publisher.js', () => ({
   publishPhoto: vi.fn(),
   listCollections: vi.fn(),
   createCollection: vi.fn(),
+  findCollection: vi.fn(),
+  updateCollectionWithPhoto: vi.fn(),
 }))
 
 vi.mock('sharp', () => {
@@ -35,7 +37,13 @@ vi.mock('sharp', () => {
 
 import { readdir, stat } from 'node:fs/promises'
 import { readSidecar, writeSidecar, hasSidecar, patchSidecar, markPublished } from '../sidecar.js'
-import { publishPhoto, listCollections, createCollection } from '../publisher.js'
+import {
+  publishPhoto,
+  listCollections,
+  createCollection,
+  findCollection,
+  updateCollectionWithPhoto,
+} from '../publisher.js'
 import sharp from 'sharp'
 
 const { createApi } = await import('./api.js')
@@ -227,6 +235,32 @@ describe('PATCH /api/photos/:collection/:filename', () => {
     expect(patchCall?.[1]).toEqual({ status: 'approved' })
   })
 
+  it('patches SEO fields into user edits', async () => {
+    vi.mocked(hasSidecar).mockReturnValue(true)
+    vi.mocked(patchSidecar).mockResolvedValue(makeSidecar())
+
+    const res = await app.request('/api/photos/iceland/aurora.jpg', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        seoTitle: 'Custom SEO Title',
+        seoDescription: 'Custom SEO description for the photo',
+      }),
+    })
+    const body = (await res.json()) as ApiResponse<{ status: string }>
+
+    expect(res.status).toBe(200)
+    expect(body.ok).toBe(true)
+
+    const patchCall = vi.mocked(patchSidecar).mock.calls[0]
+    expect(patchCall?.[1]).toEqual({
+      userEdits: {
+        seoTitle: 'Custom SEO Title',
+        seoDescription: 'Custom SEO description for the photo',
+      },
+    })
+  })
+
   it('round-trips tags through PATCH and GET with effective merge', async () => {
     const editedTags = ['edited-tag', 'new-tag']
     const editedSidecar = makeSidecar({
@@ -274,9 +308,10 @@ describe('POST /api/photos/:collection/:filename/approve', () => {
 })
 
 describe('POST /api/photos/:collection/:filename/publish', () => {
-  it('publishes approved photo and updates sidecar', async () => {
+  it('publishes approved photo, resolves collection, and links', async () => {
     const sidecar = makeSidecar({ status: 'approved' })
     vi.mocked(readSidecar).mockResolvedValue(sidecar)
+    vi.mocked(findCollection).mockResolvedValue('collection-1')
     vi.mocked(publishPhoto).mockResolvedValue({
       assetId: 'asset-1',
       entryId: 'entry-1',
@@ -291,11 +326,53 @@ describe('POST /api/photos/:collection/:filename/publish', () => {
     expect(body.ok).toBe(true)
     expect(body.data).toEqual({ assetId: 'asset-1', entryId: 'entry-1' })
 
-    expect(vi.mocked(markPublished)).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(markPublished)).toHaveBeenCalledWith(
-      '/photos/iceland/aurora.jpg'.replace(/\.\w+$/, '.json'),
+    expect(vi.mocked(findCollection)).toHaveBeenCalledWith(expect.anything(), 'iceland')
+    expect(vi.mocked(publishPhoto)).toHaveBeenCalledWith(
+      '/photos/iceland/aurora.jpg',
       sidecar,
-      { assetId: 'asset-1', entryId: 'entry-1' },
+      expect.anything(),
+      { collectionId: 'collection-1' },
+    )
+    expect(vi.mocked(updateCollectionWithPhoto)).toHaveBeenCalledWith(
+      expect.anything(),
+      'collection-1',
+      'entry-1',
+      'asset-1',
+    )
+    expect(vi.mocked(markPublished)).toHaveBeenCalledTimes(1)
+  })
+
+  it('creates collection when not found then links photo', async () => {
+    const sidecar = makeSidecar({ status: 'approved' })
+    vi.mocked(readSidecar).mockResolvedValue(sidecar)
+    vi.mocked(findCollection).mockResolvedValue(null)
+    vi.mocked(createCollection).mockResolvedValue('new-collection-1')
+    vi.mocked(publishPhoto).mockResolvedValue({
+      assetId: 'asset-2',
+      entryId: 'entry-2',
+    })
+
+    const res = await app.request('/api/photos/iceland/aurora.jpg/publish', {
+      method: 'POST',
+    })
+    const body = (await res.json()) as ApiResponse<{ assetId: string; entryId: string }>
+
+    expect(res.status).toBe(200)
+    expect(body.ok).toBe(true)
+
+    expect(vi.mocked(findCollection)).toHaveBeenCalledWith(expect.anything(), 'iceland')
+    expect(vi.mocked(createCollection)).toHaveBeenCalledWith(expect.anything(), 'Iceland')
+    expect(vi.mocked(publishPhoto)).toHaveBeenCalledWith(
+      '/photos/iceland/aurora.jpg',
+      sidecar,
+      expect.anything(),
+      { collectionId: 'new-collection-1' },
+    )
+    expect(vi.mocked(updateCollectionWithPhoto)).toHaveBeenCalledWith(
+      expect.anything(),
+      'new-collection-1',
+      'entry-2',
+      'asset-2',
     )
   })
 

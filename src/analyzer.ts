@@ -96,7 +96,9 @@ Respond with ONLY valid JSON, no markdown fencing:
 {
   "title": "Short evocative title (3-7 words, no quotes in the title)",
   "caption": "One or two sentences describing the scene, mood, and notable elements. Written for a photography portfolio — concise, atmospheric, not technical.",
-  "tags": ["tag1", "tag2", ...] // 4-8 lowercase single-word or hyphenated tags (e.g. "landscape", "golden-hour", "mountains")
+  "tags": ["tag1", "tag2", ...], // 4-8 lowercase single-word or hyphenated tags (e.g. "landscape", "golden-hour", "mountains")
+  "seoTitle": "Concise keyword-rich title for search engines and social sharing (50-60 chars)",
+  "seoDescription": "Brief description for search engine results and social previews (120-160 chars)"
 }`,
               },
             ],
@@ -111,7 +113,13 @@ Respond with ONLY valid JSON, no markdown fencing:
   )
 
   const text = response.content[0]?.type === 'text' ? response.content[0].text : ''
-  const parsed = JSON.parse(text) as { title: string; caption: string; tags: string[] }
+  const parsed = JSON.parse(text) as {
+    title: string
+    caption: string
+    tags: string[]
+    seoTitle?: string
+    seoDescription?: string
+  }
 
   const tags = [...parsed.tags]
   if (context) {
@@ -125,6 +133,8 @@ Respond with ONLY valid JSON, no markdown fencing:
     title: parsed.title,
     caption: parsed.caption,
     tags,
+    seoTitle: parsed.seoTitle,
+    seoDescription: parsed.seoDescription,
     model: VISION_MODEL,
     generatedAt: new Date().toISOString(),
   }

@@ -177,6 +177,9 @@ describe('analyzeWithVision', () => {
             title: 'Northern Lights',
             caption: 'Aurora borealis dancing across the sky',
             tags: ['aurora', 'iceland', 'night'],
+            seoTitle: 'Northern Lights Aurora Borealis Iceland',
+            seoDescription:
+              'Witness the spectacular aurora borealis dancing across the Icelandic night sky in vivid greens and purples.',
           }),
         },
       ],
@@ -187,8 +190,33 @@ describe('analyzeWithVision', () => {
     expect(result.title).toBe('Northern Lights')
     expect(result.caption).toBe('Aurora borealis dancing across the sky')
     expect(result.tags).toEqual(['aurora', 'iceland', 'night'])
+    expect(result.seoTitle).toBe('Northern Lights Aurora Borealis Iceland')
+    expect(result.seoDescription).toBe(
+      'Witness the spectacular aurora borealis dancing across the Icelandic night sky in vivid greens and purples.',
+    )
     expect(result.model).toContain('claude')
     expect(result.generatedAt).toBeTruthy()
+  })
+
+  it('returns undefined SEO fields when AI omits them', async () => {
+    anthropicCreateMock.mockResolvedValue({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            title: 'Simple Photo',
+            caption: 'A simple scene',
+            tags: ['simple'],
+          }),
+        },
+      ],
+    })
+
+    const result = await analyzeWithVision('/photos/photo.jpg', 'test-api-key')
+
+    expect(result.title).toBe('Simple Photo')
+    expect(result.seoTitle).toBeUndefined()
+    expect(result.seoDescription).toBeUndefined()
   })
 
   it('sends base64 encoded image to Anthropic', async () => {
@@ -357,6 +385,8 @@ describe('analyzePhoto', () => {
             title: 'Test Photo',
             caption: 'A test photo',
             tags: ['test'],
+            seoTitle: 'Test Photo Portfolio',
+            seoDescription: 'A beautiful test photo for the portfolio collection.',
           }),
         },
       ],
@@ -368,6 +398,8 @@ describe('analyzePhoto', () => {
     expect(result.exif.iso).toBe(100)
     expect(result.ai.title).toBe('Test Photo')
     expect(result.ai.tags).toEqual(['test'])
+    expect(result.ai.seoTitle).toBe('Test Photo Portfolio')
+    expect(result.ai.seoDescription).toBe('A beautiful test photo for the portfolio collection.')
   })
 
   it('passes EXIF date and GPS as context to vision when context provided', async () => {

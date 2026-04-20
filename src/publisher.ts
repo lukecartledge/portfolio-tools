@@ -145,6 +145,13 @@ export async function publishPhoto(
                 }
               : {}),
             featured: { [CONTENTFUL_LOCALE]: false },
+            seoMetaTitle: { [CONTENTFUL_LOCALE]: effective.seoTitle },
+            seoMetaDescription: { [CONTENTFUL_LOCALE]: effective.seoDescription },
+            seoOgImage: {
+              [CONTENTFUL_LOCALE]: {
+                sys: { type: 'Link', linkType: 'Asset', id: latestAsset.sys.id },
+              },
+            },
           },
         },
       ),
@@ -213,10 +220,20 @@ export async function listCollections(
   }))
 }
 
-export async function createCollection(config: Config, title: string): Promise<string> {
+export interface CreateCollectionOptions {
+  /** Collection description text */
+  description?: string
+}
+
+export async function createCollection(
+  config: Config,
+  title: string,
+  options?: CreateCollectionOptions,
+): Promise<string> {
   const client = getClient(config)
 
   const slug = slugify(title, { lower: true, strict: true })
+  const displayOrder = await nextDisplayOrder(client)
 
   const entry = await withRetry(
     () =>
@@ -226,6 +243,15 @@ export async function createCollection(config: Config, title: string): Promise<s
           fields: {
             title: { [CONTENTFUL_LOCALE]: title },
             slug: { [CONTENTFUL_LOCALE]: slug },
+            displayOrder: { [CONTENTFUL_LOCALE]: displayOrder },
+            featured: { [CONTENTFUL_LOCALE]: false },
+            seoMetaTitle: { [CONTENTFUL_LOCALE]: title },
+            ...(options?.description
+              ? {
+                  description: { [CONTENTFUL_LOCALE]: options.description },
+                  seoMetaDescription: { [CONTENTFUL_LOCALE]: options.description },
+                }
+              : {}),
           },
         },
       ),
@@ -237,6 +263,86 @@ export async function createCollection(config: Config, title: string): Promise<s
     label: 'Contentful entry.publish',
   })
   return entry.sys.id
+}
+
+export async function updateCollectionWithPhoto(
+  config: Config,
+  collectionId: string,
+  photoEntryId: string,
+  assetId: string,
+): Promise<void> {
+  const client = getClient(config)
+
+  const collection = await withRetry(() => client.entry.get({ entryId: collectionId }), {
+    ...retryOpts,
+    label: 'Contentful entry.get (collection)',
+  })
+
+  interface Link {
+    sys: { type: string; linkType: string; id: string }
+  }
+  const photosField = collection.fields.photos as Record<string, Link[]> | undefined
+  const existingPhotos = photosField?.[CONTENTFUL_LOCALE] ?? []
+
+  // Idempotent: skip if photo already linked
+  if (existingPhotos.some((p) => p.sys.id === photoEntryId)) {
+    return
+  }
+
+  const updatedFields: Record<string, unknown> = {
+    ...collection.fields,
+    photos: {
+      [CONTENTFUL_LOCALE]: [
+        ...existingPhotos,
+        { sys: { type: 'Link', linkType: 'Entry', id: photoEntryId } },
+      ],
+    },
+  }
+
+  // Set coverPhoto to this photo if not already set
+  const coverField = collection.fields.coverPhoto as Record<string, Link> | undefined
+  if (!coverField?.[CONTENTFUL_LOCALE]) {
+    updatedFields.coverPhoto = {
+      [CONTENTFUL_LOCALE]: { sys: { type: 'Link', linkType: 'Entry', id: photoEntryId } },
+    }
+  }
+
+  // Set seoOgImage to the photo's asset if not already set
+  const seoOgField = collection.fields.seoOgImage as Record<string, Link> | undefined
+  if (!seoOgField?.[CONTENTFUL_LOCALE]) {
+    updatedFields.seoOgImage = {
+      [CONTENTFUL_LOCALE]: { sys: { type: 'Link', linkType: 'Asset', id: assetId } },
+    }
+  }
+
+  const updated = await withRetry(
+    () => client.entry.update({ entryId: collectionId }, { ...collection, fields: updatedFields }),
+    { ...retryOpts, label: 'Contentful entry.update (collection)' },
+  )
+
+  await withRetry(() => client.entry.publish({ entryId: collectionId }, updated), {
+    ...retryOpts,
+    label: 'Contentful entry.publish (collection)',
+  })
+}
+
+async function nextDisplayOrder(client: PlainClientAPI): Promise<number> {
+  const entries = await withRetry(
+    () =>
+      client.entry.getMany({
+        query: { content_type: COLLECTION_CONTENT_TYPE },
+      }),
+    { ...retryOpts, label: 'Contentful entry.getMany (displayOrder)' },
+  )
+
+  let max = 0
+  for (const entry of entries.items) {
+    const order = (entry.fields.displayOrder as Record<string, number> | undefined)?.[
+      CONTENTFUL_LOCALE
+    ]
+    if (order != null && order > max) max = order
+  }
+  return max + 1
 }
 
 async function resolveCollection(

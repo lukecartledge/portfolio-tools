@@ -22,8 +22,10 @@ const {
   mockAssetPublish,
   mockAssetProcessForAllLocales,
   mockEntryCreate,
+  mockEntryGet,
   mockEntryGetMany,
   mockEntryPublish,
+  mockEntryUpdate,
   mockClient,
 } = vi.hoisted(() => {
   const mockUploadCreate = vi.fn()
@@ -32,8 +34,10 @@ const {
   const mockAssetPublish = vi.fn()
   const mockAssetProcessForAllLocales = vi.fn()
   const mockEntryCreate = vi.fn()
+  const mockEntryGet = vi.fn()
   const mockEntryGetMany = vi.fn()
   const mockEntryPublish = vi.fn()
+  const mockEntryUpdate = vi.fn()
 
   const mockClient = {
     upload: { create: mockUploadCreate },
@@ -45,8 +49,10 @@ const {
     },
     entry: {
       create: mockEntryCreate,
+      get: mockEntryGet,
       getMany: mockEntryGetMany,
       publish: mockEntryPublish,
+      update: mockEntryUpdate,
     },
   }
 
@@ -57,8 +63,10 @@ const {
     mockAssetPublish,
     mockAssetProcessForAllLocales,
     mockEntryCreate,
+    mockEntryGet,
     mockEntryGetMany,
     mockEntryPublish,
+    mockEntryUpdate,
     mockClient,
   }
 })
@@ -67,8 +75,14 @@ vi.mock('contentful-management', () => ({
   createClient: vi.fn(() => mockClient),
 }))
 
-const { publishPhoto, listCollections, createCollection, checkSlugExists, findCollection } =
-  await import('./publisher.js')
+const {
+  publishPhoto,
+  listCollections,
+  createCollection,
+  checkSlugExists,
+  findCollection,
+  updateCollectionWithPhoto,
+} = await import('./publisher.js')
 
 function makeConfig(): Config {
   return {
@@ -193,6 +207,8 @@ describe('publishPhoto', () => {
           caption: { 'en-US': 'Aurora borealis dancing across the sky' },
           tags: { 'en-US': ['aurora', 'iceland', 'night'] },
           featured: { 'en-US': false },
+          seoMetaTitle: { 'en-US': 'Northern Lights' },
+          seoMetaDescription: { 'en-US': 'Aurora borealis dancing across the sky' },
         }),
       }),
     )
@@ -259,6 +275,43 @@ describe('publishPhoto', () => {
     expect(fields.iso['en-US']).toBe(100)
     expect(fields.focalLength['en-US']).toBe('35mm')
     expect(fields.dateTaken['en-US']).toBe('2026-03-15T14:30:00.000Z')
+  })
+
+  it('sets seoOgImage to the uploaded asset', async () => {
+    setupPublishMocks()
+    mockEntryGetMany.mockResolvedValue({ items: [] })
+
+    await publishPhoto('/photos/iceland/aurora.jpg', makeSidecar(), makeConfig())
+
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.seoOgImage['en-US']).toEqual({
+      sys: { type: 'Link', linkType: 'Asset', id: 'asset-1' },
+    })
+  })
+
+  it('uses AI seoTitle and seoDescription when provided', async () => {
+    setupPublishMocks()
+    mockEntryGetMany.mockResolvedValue({ items: [] })
+
+    const sidecar = makeSidecar({
+      ai: {
+        title: 'Northern Lights',
+        caption: 'Aurora borealis dancing across the sky',
+        tags: ['aurora', 'iceland', 'night'],
+        seoTitle: 'Northern Lights Aurora Iceland Photography',
+        seoDescription: 'Stunning aurora borealis over Iceland. Fine art landscape photography.',
+        model: 'claude-sonnet-4-6',
+        generatedAt: '2026-03-15T15:00:00.000Z',
+      },
+    })
+
+    await publishPhoto('/photos/iceland/aurora.jpg', sidecar, makeConfig())
+
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.seoMetaTitle['en-US']).toBe('Northern Lights Aurora Iceland Photography')
+    expect(fields.seoMetaDescription['en-US']).toBe(
+      'Stunning aurora borealis over Iceland. Fine art landscape photography.',
+    )
   })
 
   it('omits null EXIF fields from entry', async () => {
@@ -380,7 +433,8 @@ describe('listCollections', () => {
 })
 
 describe('createCollection', () => {
-  it('creates entry with title and slug then publishes', async () => {
+  it('creates entry with enriched fields then publishes', async () => {
+    mockEntryGetMany.mockResolvedValue({ items: [] })
     mockEntryCreate.mockResolvedValue({
       sys: { id: 'new-collection-1' },
     })
@@ -396,6 +450,9 @@ describe('createCollection', () => {
         fields: {
           title: { 'en-US': 'New Zealand' },
           slug: { 'en-US': 'new-zealand' },
+          displayOrder: { 'en-US': 1 },
+          featured: { 'en-US': false },
+          seoMetaTitle: { 'en-US': 'New Zealand' },
         },
       },
     )
@@ -404,6 +461,51 @@ describe('createCollection', () => {
       { sys: { id: 'new-collection-1' } },
     )
     expect(id).toBe('new-collection-1')
+  })
+
+  it('auto-increments displayOrder from existing collections', async () => {
+    mockEntryGetMany.mockResolvedValue({
+      items: [
+        { sys: { id: 'c1' }, fields: { displayOrder: { 'en-US': 3 } } },
+        { sys: { id: 'c2' }, fields: { displayOrder: { 'en-US': 7 } } },
+        { sys: { id: 'c3' }, fields: {} },
+      ],
+    })
+    mockEntryCreate.mockResolvedValue({ sys: { id: 'new-collection' } })
+    mockEntryPublish.mockResolvedValue({})
+
+    await createCollection(makeConfig(), 'Norway')
+
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.displayOrder['en-US']).toBe(8)
+  })
+
+  it('includes description and seoMetaDescription when provided', async () => {
+    mockEntryGetMany.mockResolvedValue({ items: [] })
+    mockEntryCreate.mockResolvedValue({ sys: { id: 'new-collection' } })
+    mockEntryPublish.mockResolvedValue({})
+
+    await createCollection(makeConfig(), 'Norway', {
+      description: 'Dramatic fjords and northern lights across Norway.',
+    })
+
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.description['en-US']).toBe('Dramatic fjords and northern lights across Norway.')
+    expect(fields.seoMetaDescription['en-US']).toBe(
+      'Dramatic fjords and northern lights across Norway.',
+    )
+  })
+
+  it('omits description fields when not provided', async () => {
+    mockEntryGetMany.mockResolvedValue({ items: [] })
+    mockEntryCreate.mockResolvedValue({ sys: { id: 'new-collection' } })
+    mockEntryPublish.mockResolvedValue({})
+
+    await createCollection(makeConfig(), 'Norway')
+
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.description).toBeUndefined()
+    expect(fields.seoMetaDescription).toBeUndefined()
   })
 })
 
@@ -480,5 +582,137 @@ describe('publishPhoto with collectionId option', () => {
     const fields = mockEntryCreate.mock.calls[0]?.[1].fields
     expect(fields.collections).toBeUndefined()
     expect(mockEntryGetMany).not.toHaveBeenCalled()
+  })
+})
+
+function makeCollectionEntry(overrides?: {
+  photos?: unknown[]
+  coverPhoto?: unknown
+  seoOgImage?: unknown
+}) {
+  return {
+    sys: { id: 'collection-1', version: 3 },
+    fields: {
+      title: { 'en-US': 'Iceland' },
+      slug: { 'en-US': 'iceland' },
+      ...(overrides?.photos !== undefined ? { photos: { 'en-US': overrides.photos } } : {}),
+      ...(overrides?.coverPhoto !== undefined
+        ? { coverPhoto: { 'en-US': overrides.coverPhoto } }
+        : {}),
+      ...(overrides?.seoOgImage !== undefined
+        ? { seoOgImage: { 'en-US': overrides.seoOgImage } }
+        : {}),
+    },
+  }
+}
+
+describe('updateCollectionWithPhoto', () => {
+  it('appends photo to empty collection photos array', async () => {
+    const collection = makeCollectionEntry()
+    mockEntryGet.mockResolvedValue(collection)
+    mockEntryUpdate.mockResolvedValue({ ...collection, sys: { ...collection.sys, version: 4 } })
+    mockEntryPublish.mockResolvedValue({})
+
+    await updateCollectionWithPhoto(makeConfig(), 'collection-1', 'photo-1', 'asset-1')
+
+    const updateCall = mockEntryUpdate.mock.calls[0]
+    expect(updateCall?.[0]).toEqual({ entryId: 'collection-1' })
+    const updatedFields = updateCall?.[1].fields
+    expect(updatedFields.photos['en-US']).toEqual([
+      { sys: { type: 'Link', linkType: 'Entry', id: 'photo-1' } },
+    ])
+  })
+
+  it('appends photo to existing collection photos array', async () => {
+    const existingLink = { sys: { type: 'Link', linkType: 'Entry', id: 'existing-photo' } }
+    const collection = makeCollectionEntry({ photos: [existingLink] })
+    mockEntryGet.mockResolvedValue(collection)
+    mockEntryUpdate.mockResolvedValue({ ...collection, sys: { ...collection.sys, version: 4 } })
+    mockEntryPublish.mockResolvedValue({})
+
+    await updateCollectionWithPhoto(makeConfig(), 'collection-1', 'photo-1', 'asset-1')
+
+    const updatedFields = mockEntryUpdate.mock.calls[0]?.[1].fields
+    expect(updatedFields.photos['en-US']).toHaveLength(2)
+    expect(updatedFields.photos['en-US'][1]).toEqual({
+      sys: { type: 'Link', linkType: 'Entry', id: 'photo-1' },
+    })
+  })
+
+  it('sets coverPhoto when none exists', async () => {
+    const collection = makeCollectionEntry()
+    mockEntryGet.mockResolvedValue(collection)
+    mockEntryUpdate.mockResolvedValue({ ...collection, sys: { ...collection.sys, version: 4 } })
+    mockEntryPublish.mockResolvedValue({})
+
+    await updateCollectionWithPhoto(makeConfig(), 'collection-1', 'photo-1', 'asset-1')
+
+    const updatedFields = mockEntryUpdate.mock.calls[0]?.[1].fields
+    expect(updatedFields.coverPhoto['en-US']).toEqual({
+      sys: { type: 'Link', linkType: 'Entry', id: 'photo-1' },
+    })
+  })
+
+  it('does not overwrite existing coverPhoto', async () => {
+    const existingCover = { sys: { type: 'Link', linkType: 'Entry', id: 'cover-photo' } }
+    const collection = makeCollectionEntry({ coverPhoto: existingCover })
+    mockEntryGet.mockResolvedValue(collection)
+    mockEntryUpdate.mockResolvedValue({ ...collection, sys: { ...collection.sys, version: 4 } })
+    mockEntryPublish.mockResolvedValue({})
+
+    await updateCollectionWithPhoto(makeConfig(), 'collection-1', 'photo-1', 'asset-1')
+
+    const updatedFields = mockEntryUpdate.mock.calls[0]?.[1].fields
+    expect(updatedFields.coverPhoto['en-US']).toEqual(existingCover)
+  })
+
+  it('sets seoOgImage when none exists', async () => {
+    const collection = makeCollectionEntry()
+    mockEntryGet.mockResolvedValue(collection)
+    mockEntryUpdate.mockResolvedValue({ ...collection, sys: { ...collection.sys, version: 4 } })
+    mockEntryPublish.mockResolvedValue({})
+
+    await updateCollectionWithPhoto(makeConfig(), 'collection-1', 'photo-1', 'asset-1')
+
+    const updatedFields = mockEntryUpdate.mock.calls[0]?.[1].fields
+    expect(updatedFields.seoOgImage['en-US']).toEqual({
+      sys: { type: 'Link', linkType: 'Asset', id: 'asset-1' },
+    })
+  })
+
+  it('does not overwrite existing seoOgImage', async () => {
+    const existingOg = { sys: { type: 'Link', linkType: 'Asset', id: 'existing-asset' } }
+    const collection = makeCollectionEntry({ seoOgImage: existingOg })
+    mockEntryGet.mockResolvedValue(collection)
+    mockEntryUpdate.mockResolvedValue({ ...collection, sys: { ...collection.sys, version: 4 } })
+    mockEntryPublish.mockResolvedValue({})
+
+    await updateCollectionWithPhoto(makeConfig(), 'collection-1', 'photo-1', 'asset-1')
+
+    const updatedFields = mockEntryUpdate.mock.calls[0]?.[1].fields
+    expect(updatedFields.seoOgImage['en-US']).toEqual(existingOg)
+  })
+
+  it('is idempotent when photo already linked', async () => {
+    const existingLink = { sys: { type: 'Link', linkType: 'Entry', id: 'photo-1' } }
+    const collection = makeCollectionEntry({ photos: [existingLink] })
+    mockEntryGet.mockResolvedValue(collection)
+
+    await updateCollectionWithPhoto(makeConfig(), 'collection-1', 'photo-1', 'asset-1')
+
+    expect(mockEntryUpdate).not.toHaveBeenCalled()
+    expect(mockEntryPublish).not.toHaveBeenCalled()
+  })
+
+  it('re-publishes collection after update', async () => {
+    const collection = makeCollectionEntry()
+    const updatedCollection = { ...collection, sys: { ...collection.sys, version: 4 } }
+    mockEntryGet.mockResolvedValue(collection)
+    mockEntryUpdate.mockResolvedValue(updatedCollection)
+    mockEntryPublish.mockResolvedValue({})
+
+    await updateCollectionWithPhoto(makeConfig(), 'collection-1', 'photo-1', 'asset-1')
+
+    expect(mockEntryPublish).toHaveBeenCalledWith({ entryId: 'collection-1' }, updatedCollection)
   })
 })

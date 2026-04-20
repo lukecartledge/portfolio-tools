@@ -327,6 +327,78 @@
       .save-indicator.visible {
         opacity: 1;
       }
+
+      .card-seo {
+        margin: 8px 0;
+        border: none;
+      }
+
+      .card-seo summary {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #999;
+        cursor: pointer;
+        padding: 4px 0;
+        list-style: none;
+      }
+
+      .card-seo summary::before {
+        content: '\25B6  ';
+        font-size: 9px;
+      }
+
+      .card-seo[open] summary::before {
+        content: '\25BC  ';
+      }
+
+      .seo-label {
+        font-size: 11px;
+        color: #999;
+        display: block;
+        margin-top: 8px;
+        margin-bottom: 2px;
+      }
+
+      .card-seo input {
+        width: 100%;
+        font-size: 13px;
+        border: none;
+        border-bottom: 1px solid transparent;
+        padding: 2px 0;
+        background: transparent;
+        font-family: inherit;
+      }
+
+      .card-seo input:hover {
+        border-bottom-color: #ddd;
+      }
+      .card-seo input:focus {
+        outline: none;
+        border-bottom-color: #1a1a1a;
+      }
+
+      .card-seo textarea {
+        width: 100%;
+        font-size: 13px;
+        color: #555;
+        border: none;
+        border-bottom: 1px solid transparent;
+        padding: 2px 0;
+        background: transparent;
+        resize: vertical;
+        min-height: 32px;
+        font-family: inherit;
+        line-height: 1.5;
+      }
+
+      .card-seo textarea:hover {
+        border-bottom-color: #ddd;
+      }
+      .card-seo textarea:focus {
+        outline: none;
+        border-bottom-color: #1a1a1a;
+      }
     </style>
   </head>
   <body>
@@ -450,6 +522,17 @@
                        placeholder="Add tags (comma-separated)"
                        onchange="updateField('${photo.collection}', '${s.source}', 'tags', this.value)">
               </div>
+              <details class="card-seo">
+                <summary>SEO</summary>
+                <label class="seo-label">SEO Title</label>
+                <input type="text" value="${escHtml(photo.effective.seoTitle)}"
+                       onchange="updateField('${photo.collection}', '${s.source}', 'seoTitle', this.value)"
+                       placeholder="SEO title (defaults to photo title)">
+                <label class="seo-label">SEO Description</label>
+                <textarea onchange="updateField('${photo.collection}', '${s.source}', 'seoDescription', this.value)"
+                          placeholder="SEO description (defaults to caption)"
+                >${escHtml(photo.effective.seoDescription)}</textarea>
+              </details>
               ${
                 exifParts.length > 0
                   ? `
