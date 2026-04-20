@@ -144,7 +144,7 @@ The watch directory uses subfolders as **collection names**:
     IMG_1234.json
 ```
 
-The subfolder name (e.g. `iceland`) maps to a Contentful collection entry. If the collection doesn't exist in Contentful, the publish step will skip the collection link (you can create collections via the API or the Contentful web app).
+The subfolder name (e.g. `iceland`) maps to a Contentful collection entry. If the collection doesn't exist in Contentful when you publish, it's created automatically (with title, slug, display order, and SEO fields). The photo is then linked into the collection's `photos` array, and the first photo sets the collection's cover image.
 
 ## Sidecar files
 
@@ -152,6 +152,7 @@ Each photo gets a `.json` sidecar alongside it with the same name. This is where
 
 ```json
 {
+  "schemaVersion": 1,
   "status": "pending",
   "source": "DSC_0001.jpg",
   "collection": "iceland",
@@ -168,8 +169,11 @@ Each photo gets a `.json` sidecar alongside it with the same name. This is where
   "ai": {
     "title": "Midnight Sun Over Reynisfjara",
     "caption": "Black sand beach stretching toward basalt sea stacks under a low golden sun.",
-    "tags": ["landscape", "iceland", "beach", "golden-hour", "basalt", "ocean"]
+    "tags": ["landscape", "iceland", "beach", "golden-hour", "basalt", "ocean"],
+    "seoTitle": "Reynisfjara Black Sand Beach at Midnight Sun | Iceland",
+    "seoDescription": "Black sand beach with basalt sea stacks under the midnight sun in southern Iceland."
   },
+  "userEdits": {},
   "contentful": {
     "assetId": null,
     "entryId": null,
@@ -208,9 +212,11 @@ user reviews in browser UI (localhost:3000)
   → approves photo
 
 publish command (CLI or UI)
+  → checks for duplicates (sidecar + slug lookup)
   → uploads image asset to Contentful
-  → creates photo entry with all metadata
-  → links to collection entry (from subfolder name)
+  → creates photo entry with metadata + SEO fields
+  → finds or creates collection entry (from subfolder name)
+  → links photo into collection (photos array, cover photo)
   → marks sidecar as published
 ```
 
@@ -249,6 +255,8 @@ Optional:
 | `VISION_MODEL`              | `claude-sonnet-4-6`    | Claude model for vision analysis                |
 | `WRITE_STABILITY_THRESHOLD` | `3000`                 | File write stability threshold (ms)             |
 | `LOG_LEVEL`                 | `info`                 | Log verbosity: debug, info, warn, error, silent |
+| `MAX_RETRIES`               | `3`                    | Max retry attempts for transient API errors     |
+| `RETRY_BASE_DELAY_MS`       | `1000`                 | Base delay between retries (ms)                 |
 
 ## License
 
