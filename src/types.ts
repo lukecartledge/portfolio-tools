@@ -18,6 +18,8 @@ export interface AiMetadata {
   title: string
   caption: string
   tags: string[]
+  seoTitle?: string
+  seoDescription?: string
   model: string
   generatedAt: string
 }
@@ -35,6 +37,8 @@ export interface UserEdits {
   title?: string
   caption?: string
   tags?: string[]
+  seoTitle?: string
+  seoDescription?: string
 }
 
 /** Contentful publishing state */
@@ -73,6 +77,8 @@ export interface EffectiveMetadata {
   title: string
   caption: string
   tags: string[]
+  seoTitle: string
+  seoDescription: string
 }
 
 /** Photo with full metadata (sidecar loaded) */
@@ -131,5 +137,7 @@ export function mergeMetadata(ai: AiMetadata, userEdits?: UserEdits): EffectiveM
     title: userEdits?.title ?? ai.title,
     caption: userEdits?.caption ?? ai.caption,
     tags: userEdits?.tags ?? ai.tags,
+    seoTitle: userEdits?.seoTitle ?? ai.seoTitle ?? ai.title,
+    seoDescription: userEdits?.seoDescription ?? ai.seoDescription ?? ai.caption,
   }
 }
