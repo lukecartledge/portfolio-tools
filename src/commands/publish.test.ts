@@ -185,3 +185,72 @@ describe('publish --dry-run', () => {
     await rm(editDir, { recursive: true, force: true })
   })
 })
+
+describe('publish duplicate detection', () => {
+  let tmpDir: string
+
+  beforeAll(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'cli-dup-'))
+    const collectionDir = join(tmpDir, 'landscapes')
+    await mkdir(collectionDir, { recursive: true })
+
+    // Approved photo that was already published (entryId set)
+    await writeFile(join(collectionDir, 'already.jpg'), Buffer.from('fake'))
+    await writeFile(
+      join(collectionDir, 'already.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        status: 'approved',
+        source: 'already.jpg',
+        collection: 'landscapes',
+        exif: {
+          camera: null,
+          lens: null,
+          aperture: null,
+          shutterSpeed: null,
+          iso: null,
+          focalLength: null,
+          dateTaken: null,
+          gps: null,
+        },
+        ai: {
+          title: 'Already Published',
+          caption: 'This was published before',
+          tags: ['landscape'],
+          model: 'test',
+          generatedAt: '2025-01-01T00:00:00Z',
+        },
+        contentful: {
+          assetId: 'asset-abc',
+          entryId: 'entry-xyz-123',
+          publishedAt: '2025-06-01T00:00:00Z',
+        },
+      }),
+    )
+  })
+
+  afterAll(async () => {
+    await rm(tmpDir, { recursive: true, force: true })
+  })
+
+  test('skips already-published photos by default', async () => {
+    const { stdout, stderr, code } = await runCli(['publish', '--all', '--dir', tmpDir], CONFIG_ENV)
+    expect(code).toBe(0)
+    expect(stderr).toContain('Skipping')
+    expect(stderr).toContain('already published')
+    expect(stderr).toContain('entry-xyz-123')
+    expect(stdout).toContain('Skipped: 1')
+  })
+
+  test('--force bypasses sidecar duplicate check', async () => {
+    const { stderr } = await runCli(['publish', '--all', '--force', '--dir', tmpDir], CONFIG_ENV)
+    expect(stderr).not.toContain('Skipping')
+    expect(stderr).not.toContain('already published')
+  })
+
+  test('--force bypasses sidecar duplicate check', async () => {
+    const { stdout } = await runCli(['publish', '--all', '--force', '--dir', tmpDir], CONFIG_ENV)
+    expect(stdout).not.toContain('Skipping')
+    expect(stdout).not.toContain('already published')
+  })
+})

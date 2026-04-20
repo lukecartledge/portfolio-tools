@@ -75,6 +75,7 @@ async function publishSinglePhoto(photo: ApprovedPhoto, config: Config): Promise
 export interface PublishOptions {
   dryRun: boolean
   all: boolean
+  force: boolean
 }
 
 export async function runPublish(config: Config, options: PublishOptions): Promise<void> {
@@ -136,8 +137,17 @@ export async function runPublish(config: Config, options: PublishOptions): Promi
 
   let published = 0
   let errors = 0
+  let skipped = 0
 
   for (const photo of toPublish) {
+    if (!options.force && photo.sidecar.contentful.entryId) {
+      log.warn(
+        `Skipping: ${photo.collection}/${photo.filename} — already published (entryId: ${photo.sidecar.contentful.entryId}). Use --force to re-publish.`,
+      )
+      skipped++
+      continue
+    }
+
     const ok = await publishSinglePhoto(photo, config)
     if (ok) {
       published++
@@ -146,5 +156,5 @@ export async function runPublish(config: Config, options: PublishOptions): Promi
     }
   }
 
-  log.info(`\nDone. Published: ${published}, Errors: ${errors}`)
+  log.info(`\nDone. Published: ${published}, Skipped: ${skipped}, Errors: ${errors}`)
 }

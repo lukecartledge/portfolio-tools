@@ -45,7 +45,7 @@ const COMMAND_OPTIONS: Record<Command, string> = {
   analyze: '',
   watch: '',
   publish:
-    '  --dry-run        Show what would be published without publishing\n  --all            Publish all approved photos without prompts\n',
+    '  --dry-run        Show what would be published without publishing\n  --all            Publish all approved photos without prompts\n  --force          Re-publish photos that were already published\n',
   dev: '  --port <port>    Server port (default: 3000)\n',
 }
 
@@ -61,6 +61,7 @@ function parseCliArgs() {
         port: { type: 'string' },
         'dry-run': { type: 'boolean', default: false },
         all: { type: 'boolean', default: false },
+        force: { type: 'boolean', default: false },
       },
       strict: true,
       allowPositionals: true,
@@ -113,6 +114,7 @@ switch (command) {
     await runPublish(config, {
       dryRun: values['dry-run'],
       all: values.all,
+      force: values.force,
     })
     break
   case 'dev':
