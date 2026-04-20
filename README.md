@@ -1,6 +1,8 @@
 # portfolio-tools
 
-Photo metadata automation for my portfolio site. Watches a folder for new photos, extracts EXIF data, generates titles/captions/tags via Claude Vision, and publishes to Contentful — with a local web UI for human review before anything goes live.
+Photo metadata automation for portfolio sites. Watches a folder for new photos, extracts EXIF data, generates titles/captions/tags via Claude Vision, and publishes to Contentful — with a local web UI for human review before anything goes live.
+
+MIT licensed. See [LICENSE](LICENSE).
 
 ## Prerequisites
 
@@ -11,7 +13,7 @@ Photo metadata automation for my portfolio site. Watches a folder for new photos
 ## Setup
 
 ```bash
-git clone git@github.com:lukecartledge/portfolio-tools.git
+git clone https://github.com/lukecartledge/portfolio-tools.git
 cd portfolio-tools
 npm install
 cp .env.example .env
@@ -27,6 +29,14 @@ ANTHROPIC_API_KEY=sk-ant-...
 WATCH_DIR=~/Pictures/Portfolio
 PORT=3000
 ```
+
+Then create the Contentful content model:
+
+```bash
+npm run setup
+```
+
+This creates the `photo` and `collection` content types in your Contentful space. It's idempotent — running it again skips types that already exist.
 
 ## Usage
 
@@ -55,13 +65,13 @@ npm run analyze -- --dir ~/Desktop/test-photos
 
 ### Watch for new photos
 
-Continuously watch the directory for new exports from Lightroom (or any image editor). Each new photo is automatically analyzed:
+Continuously watch the directory for new photo exports. Each new photo is automatically analyzed:
 
 ```bash
 npm run watch
 ```
 
-The watcher waits for files to stabilize (3s) before processing, so partially-written exports from Lightroom won't cause issues.
+The watcher waits for files to stabilize (configurable via `WRITE_STABILITY_THRESHOLD`) before processing, so partially-written exports won't cause issues.
 
 ### Review in the browser
 
@@ -172,9 +182,9 @@ Each photo gets a `.json` sidecar alongside it with the same name. This is where
 
 Status flow: `pending` → `approved` → `published`
 
-## Lightroom note
+## GPS data note
 
-By default, Lightroom strips GPS data on export. To preserve location coordinates in your photos, enable **Include GPS Location Data** in the export dialog under the Metadata section.
+Some photo editors (including Lightroom) strip GPS data on export. To preserve location coordinates, check your editor's export settings for a GPS/location data option.
 
 ## Development
 
@@ -184,3 +194,60 @@ npm run test:watch   # run tests in watch mode
 npm run build        # type-check (tsc --noEmit)
 npm run lint         # prettier + eslint + type-check
 ```
+
+## Architecture
+
+```
+photo dropped in watch dir
+  → chokidar detects new file
+  → exifr extracts EXIF metadata
+  → sharp resizes for AI input
+  → Claude Vision generates title, caption, tags
+  → sidecar JSON written alongside photo
+
+user reviews in browser UI (localhost:3000)
+  → edits title/caption/tags inline
+  → approves photo
+
+publish command (CLI or UI)
+  → uploads image asset to Contentful
+  → creates photo entry with all metadata
+  → links to collection entry (from subfolder name)
+  → marks sidecar as published
+```
+
+### Key dependencies
+
+| Dependency                   | Purpose                                  |
+| ---------------------------- | ---------------------------------------- |
+| `@anthropic-ai/sdk`          | Claude Vision for AI-generated metadata  |
+| `exifr`                      | Pure-JS EXIF extraction (~1ms/file)      |
+| `sharp`                      | Image resize for AI vision input         |
+| `chokidar`                   | Filesystem watching                      |
+| `contentful-management`      | Contentful Management API (plain client) |
+| `hono` + `@hono/node-server` | Local review server                      |
+| `@clack/prompts`             | Interactive CLI prompts                  |
+
+## Environment variables
+
+Required:
+
+| Variable                      | Description                         |
+| ----------------------------- | ----------------------------------- |
+| `CONTENTFUL_SPACE_ID`         | Your Contentful space ID            |
+| `CONTENTFUL_MANAGEMENT_TOKEN` | Contentful Management API token     |
+| `ANTHROPIC_API_KEY`           | Anthropic API key for Claude Vision |
+
+Optional:
+
+| Variable                    | Default                | Description                                     |
+| --------------------------- | ---------------------- | ----------------------------------------------- |
+| `CONTENTFUL_ENVIRONMENT`    | `master`               | Contentful environment                          |
+| `WATCH_DIR`                 | `~/Pictures/Portfolio` | Directory to watch for photos                   |
+| `PORT`                      | `3000`                 | Review server port                              |
+| `CONTENTFUL_LOCALE`         | `en-US`                | Locale for Contentful field values              |
+| `PHOTO_CONTENT_TYPE`        | `photo`                | Contentful photo content type ID                |
+| `COLLECTION_CONTENT_TYPE`   | `collection`           | Contentful collection content type ID           |
+| `VISION_MODEL`              | `claude-sonnet-4-6`    | Claude model for vision analysis                |
+| `WRITE_STABILITY_THRESHOLD` | `3000`                 | File write stability threshold (ms)             |
+| `LOG_LEVEL`                 | `info`                 | Log verbosity: debug, info, warn, error, silent |

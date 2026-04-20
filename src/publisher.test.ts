@@ -129,7 +129,7 @@ function setupPublishMocks() {
   mockAssetGet.mockResolvedValue({
     sys: { id: 'asset-1' },
     fields: {
-      file: { 'en-GB': { url: '//images.ctfassets.net/asset-1.jpg' } },
+      file: { 'en-US': { url: '//images.ctfassets.net/asset-1.jpg' } },
     },
   })
 
@@ -171,10 +171,10 @@ describe('publishPhoto', () => {
     await publishPhoto('/photos/iceland/aurora.jpg', makeSidecar(), makeConfig())
 
     const assetFields = mockAssetCreate.mock.calls[0]?.[1].fields
-    expect(assetFields.title['en-GB']).toBe('Northern Lights')
-    expect(assetFields.file['en-GB'].contentType).toBe('image/jpeg')
-    expect(assetFields.file['en-GB'].fileName).toBe('aurora.jpg')
-    expect(assetFields.file['en-GB'].uploadFrom.sys.id).toBe('upload-1')
+    expect(assetFields.title['en-US']).toBe('Northern Lights')
+    expect(assetFields.file['en-US'].contentType).toBe('image/jpeg')
+    expect(assetFields.file['en-US'].fileName).toBe('aurora.jpg')
+    expect(assetFields.file['en-US'].uploadFrom.sys.id).toBe('upload-1')
   })
 
   it('creates entry with merged metadata and slugified title', async () => {
@@ -187,11 +187,11 @@ describe('publishPhoto', () => {
       { contentTypeId: 'photo' },
       expect.objectContaining({
         fields: expect.objectContaining({
-          title: { 'en-GB': 'Northern Lights' },
-          slug: { 'en-GB': 'northern-lights' },
-          caption: { 'en-GB': 'Aurora borealis dancing across the sky' },
-          tags: { 'en-GB': ['aurora', 'iceland', 'night'] },
-          featured: { 'en-GB': false },
+          title: { 'en-US': 'Northern Lights' },
+          slug: { 'en-US': 'northern-lights' },
+          caption: { 'en-US': 'Aurora borealis dancing across the sky' },
+          tags: { 'en-US': ['aurora', 'iceland', 'night'] },
+          featured: { 'en-US': false },
         }),
       }),
     )
@@ -206,7 +206,7 @@ describe('publishPhoto', () => {
     await publishPhoto('/photos/iceland/aurora.jpg', makeSidecar(), makeConfig())
 
     const fields = mockEntryCreate.mock.calls[0]?.[1].fields
-    expect(fields.collections['en-GB']).toEqual([
+    expect(fields.collections['en-US']).toEqual([
       {
         sys: { type: 'Link', linkType: 'Entry', id: 'collection-iceland' },
       },
@@ -238,10 +238,10 @@ describe('publishPhoto', () => {
     await publishPhoto('/photos/iceland/aurora.jpg', sidecar, makeConfig())
 
     const fields = mockEntryCreate.mock.calls[0]?.[1].fields
-    expect(fields.title['en-GB']).toBe('Custom Title')
-    expect(fields.slug['en-GB']).toBe('custom-title')
-    expect(fields.caption['en-GB']).toBe('My custom caption')
-    expect(fields.tags['en-GB']).toEqual(['custom-tag'])
+    expect(fields.title['en-US']).toBe('Custom Title')
+    expect(fields.slug['en-US']).toBe('custom-title')
+    expect(fields.caption['en-US']).toBe('My custom caption')
+    expect(fields.tags['en-US']).toEqual(['custom-tag'])
   })
 
   it('includes EXIF data in entry fields', async () => {
@@ -251,13 +251,13 @@ describe('publishPhoto', () => {
     await publishPhoto('/photos/iceland/aurora.jpg', makeSidecar(), makeConfig())
 
     const fields = mockEntryCreate.mock.calls[0]?.[1].fields
-    expect(fields.camera['en-GB']).toBe('Sony ILCE-7M4')
-    expect(fields.lens['en-GB']).toBe('FE 24-70mm F2.8 GM II')
-    expect(fields.aperture['en-GB']).toBe('f/8')
-    expect(fields.shutterSpeed['en-GB']).toBe('1/250')
-    expect(fields.iso['en-GB']).toBe(100)
-    expect(fields.focalLength['en-GB']).toBe('35mm')
-    expect(fields.dateTaken['en-GB']).toBe('2026-03-15T14:30:00.000Z')
+    expect(fields.camera['en-US']).toBe('Sony ILCE-7M4')
+    expect(fields.lens['en-US']).toBe('FE 24-70mm F2.8 GM II')
+    expect(fields.aperture['en-US']).toBe('f/8')
+    expect(fields.shutterSpeed['en-US']).toBe('1/250')
+    expect(fields.iso['en-US']).toBe(100)
+    expect(fields.focalLength['en-US']).toBe('35mm')
+    expect(fields.dateTaken['en-US']).toBe('2026-03-15T14:30:00.000Z')
   })
 
   it('omits null EXIF fields from entry', async () => {
@@ -316,7 +316,7 @@ describe('publishPhoto', () => {
     await publishPhoto('/photos/iceland/aurora.png', makeSidecar(), makeConfig())
 
     const assetFields = mockAssetCreate.mock.calls[0]?.[1].fields
-    expect(assetFields.file['en-GB'].contentType).toBe('image/png')
+    expect(assetFields.file['en-US'].contentType).toBe('image/png')
   })
 
   it('maps .webp extension to image/webp', async () => {
@@ -326,7 +326,7 @@ describe('publishPhoto', () => {
     await publishPhoto('/photos/iceland/aurora.webp', makeSidecar(), makeConfig())
 
     const assetFields = mockAssetCreate.mock.calls[0]?.[1].fields
-    expect(assetFields.file['en-GB'].contentType).toBe('image/webp')
+    expect(assetFields.file['en-US'].contentType).toBe('image/webp')
   })
 
   it('falls back to octet-stream for unknown extension', async () => {
@@ -336,7 +336,7 @@ describe('publishPhoto', () => {
     await publishPhoto('/photos/iceland/aurora.bmp', makeSidecar(), makeConfig())
 
     const assetFields = mockAssetCreate.mock.calls[0]?.[1].fields
-    expect(assetFields.file['en-GB'].contentType).toBe('application/octet-stream')
+    expect(assetFields.file['en-US'].contentType).toBe('application/octet-stream')
   })
 })
 
@@ -347,15 +347,15 @@ describe('listCollections', () => {
         {
           sys: { id: 'c1' },
           fields: {
-            title: { 'en-GB': 'Iceland' },
-            slug: { 'en-GB': 'iceland' },
+            title: { 'en-US': 'Iceland' },
+            slug: { 'en-US': 'iceland' },
           },
         },
         {
           sys: { id: 'c2' },
           fields: {
-            title: { 'en-GB': 'Norway' },
-            slug: { 'en-GB': 'norway' },
+            title: { 'en-US': 'Norway' },
+            slug: { 'en-US': 'norway' },
           },
         },
       ],
@@ -393,8 +393,8 @@ describe('createCollection', () => {
       { contentTypeId: 'collection' },
       {
         fields: {
-          title: { 'en-GB': 'New Zealand' },
-          slug: { 'en-GB': 'new-zealand' },
+          title: { 'en-US': 'New Zealand' },
+          slug: { 'en-US': 'new-zealand' },
         },
       },
     )

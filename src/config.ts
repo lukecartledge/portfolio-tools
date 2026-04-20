@@ -42,22 +42,25 @@ export type Config = ReturnType<typeof loadConfig>
 export const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.tif', '.tiff', '.png', '.webp'])
 
 /** Contentful locale for all field values */
-export const CONTENTFUL_LOCALE = 'en-GB'
+export const CONTENTFUL_LOCALE = optionalEnv('CONTENTFUL_LOCALE', 'en-US')
 
 /** Contentful photo content type ID */
-export const PHOTO_CONTENT_TYPE = 'photo'
+export const PHOTO_CONTENT_TYPE = optionalEnv('PHOTO_CONTENT_TYPE', 'photo')
 
 /** Contentful collection content type ID */
-export const COLLECTION_CONTENT_TYPE = 'collection'
+export const COLLECTION_CONTENT_TYPE = optionalEnv('COLLECTION_CONTENT_TYPE', 'collection')
 
 /** Claude model for vision analysis */
-export const VISION_MODEL = 'claude-sonnet-4-6'
+export const VISION_MODEL = optionalEnv('VISION_MODEL', 'claude-sonnet-4-6')
 
 /** Max image dimension for AI vision input */
 export const VISION_MAX_DIMENSION = 1568
 
-/** Chokidar stability threshold for Lightroom exports (ms) */
-export const WRITE_STABILITY_THRESHOLD = 3000
+/** Chokidar stability threshold for file writes (ms) */
+export const WRITE_STABILITY_THRESHOLD = parseInt(
+  optionalEnv('WRITE_STABILITY_THRESHOLD', '3000'),
+  10,
+)
 
 /** Chokidar poll interval (ms) */
 export const WRITE_POLL_INTERVAL = 500

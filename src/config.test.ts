@@ -115,31 +115,31 @@ describe('constants', () => {
     expect(IMAGE_EXTENSIONS.has('.mp4')).toBe(false)
   })
 
-  it('CONTENTFUL_LOCALE is en-GB', () => {
-    expect(CONTENTFUL_LOCALE).toBe('en-GB')
+  it('CONTENTFUL_LOCALE defaults to en-US', () => {
+    expect(CONTENTFUL_LOCALE).toBe('en-US')
   })
 
-  it('PHOTO_CONTENT_TYPE is photo', () => {
+  it('PHOTO_CONTENT_TYPE defaults to photo', () => {
     expect(PHOTO_CONTENT_TYPE).toBe('photo')
   })
 
-  it('COLLECTION_CONTENT_TYPE is collection', () => {
+  it('COLLECTION_CONTENT_TYPE defaults to collection', () => {
     expect(COLLECTION_CONTENT_TYPE).toBe('collection')
   })
 
-  it('VISION_MODEL is a claude model', () => {
-    expect(VISION_MODEL).toContain('claude')
+  it('VISION_MODEL defaults to claude-sonnet-4-6', () => {
+    expect(VISION_MODEL).toBe('claude-sonnet-4-6')
   })
 
   it('VISION_MAX_DIMENSION is 1568', () => {
     expect(VISION_MAX_DIMENSION).toBe(1568)
   })
 
-  it('WRITE_STABILITY_THRESHOLD is a positive number', () => {
-    expect(WRITE_STABILITY_THRESHOLD).toBeGreaterThan(0)
+  it('WRITE_STABILITY_THRESHOLD defaults to 3000', () => {
+    expect(WRITE_STABILITY_THRESHOLD).toBe(3000)
   })
 
-  it('WRITE_POLL_INTERVAL is a positive number', () => {
-    expect(WRITE_POLL_INTERVAL).toBeGreaterThan(0)
+  it('WRITE_POLL_INTERVAL defaults to 500', () => {
+    expect(WRITE_POLL_INTERVAL).toBe(500)
   })
 })

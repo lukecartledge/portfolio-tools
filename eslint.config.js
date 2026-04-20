@@ -42,6 +42,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
     },
   },
 
