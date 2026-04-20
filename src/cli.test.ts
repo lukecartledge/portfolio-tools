@@ -60,6 +60,7 @@ describe('CLI flags', () => {
     expect(code).toBe(0)
     expect(stdout).toContain('--dry-run')
     expect(stdout).toContain('--all')
+    expect(stdout).toContain('--force')
   })
 
   test('dev --help includes --port', async () => {
