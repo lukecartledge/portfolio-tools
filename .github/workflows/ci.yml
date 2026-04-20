@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   check:
-    name: 🔍 Lint, type check, and test
+    name: ci
     runs-on: ubuntu-latest
 
     steps:
