@@ -145,6 +145,13 @@ export async function publishPhoto(
                 }
               : {}),
             featured: { [CONTENTFUL_LOCALE]: false },
+            seoMetaTitle: { [CONTENTFUL_LOCALE]: effective.seoTitle },
+            seoMetaDescription: { [CONTENTFUL_LOCALE]: effective.seoDescription },
+            seoOgImage: {
+              [CONTENTFUL_LOCALE]: {
+                sys: { type: 'Link', linkType: 'Asset', id: latestAsset.sys.id },
+              },
+            },
           },
         },
       ),

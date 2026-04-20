@@ -193,6 +193,8 @@ describe('publishPhoto', () => {
           caption: { 'en-US': 'Aurora borealis dancing across the sky' },
           tags: { 'en-US': ['aurora', 'iceland', 'night'] },
           featured: { 'en-US': false },
+          seoMetaTitle: { 'en-US': 'Northern Lights' },
+          seoMetaDescription: { 'en-US': 'Aurora borealis dancing across the sky' },
         }),
       }),
     )
@@ -259,6 +261,43 @@ describe('publishPhoto', () => {
     expect(fields.iso['en-US']).toBe(100)
     expect(fields.focalLength['en-US']).toBe('35mm')
     expect(fields.dateTaken['en-US']).toBe('2026-03-15T14:30:00.000Z')
+  })
+
+  it('sets seoOgImage to the uploaded asset', async () => {
+    setupPublishMocks()
+    mockEntryGetMany.mockResolvedValue({ items: [] })
+
+    await publishPhoto('/photos/iceland/aurora.jpg', makeSidecar(), makeConfig())
+
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.seoOgImage['en-US']).toEqual({
+      sys: { type: 'Link', linkType: 'Asset', id: 'asset-1' },
+    })
+  })
+
+  it('uses AI seoTitle and seoDescription when provided', async () => {
+    setupPublishMocks()
+    mockEntryGetMany.mockResolvedValue({ items: [] })
+
+    const sidecar = makeSidecar({
+      ai: {
+        title: 'Northern Lights',
+        caption: 'Aurora borealis dancing across the sky',
+        tags: ['aurora', 'iceland', 'night'],
+        seoTitle: 'Northern Lights Aurora Iceland Photography',
+        seoDescription: 'Stunning aurora borealis over Iceland. Fine art landscape photography.',
+        model: 'claude-sonnet-4-6',
+        generatedAt: '2026-03-15T15:00:00.000Z',
+      },
+    })
+
+    await publishPhoto('/photos/iceland/aurora.jpg', sidecar, makeConfig())
+
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.seoMetaTitle['en-US']).toBe('Northern Lights Aurora Iceland Photography')
+    expect(fields.seoMetaDescription['en-US']).toBe(
+      'Stunning aurora borealis over Iceland. Fine art landscape photography.',
+    )
   })
 
   it('omits null EXIF fields from entry', async () => {
