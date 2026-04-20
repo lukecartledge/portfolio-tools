@@ -5,8 +5,8 @@ import slugify from 'slugify'
 import type { Config } from '../config.js'
 import { IMAGE_EXTENSIONS } from '../config.js'
 import { hasSidecar, sidecarPathFor, readSidecar, markPublished } from '../sidecar.js'
-import { publishPhoto, checkSlugExists } from '../publisher.js'
-import { errorMessage } from '../utils.js'
+import { publishPhoto, checkSlugExists, findCollection, createCollection } from '../publisher.js'
+import { errorMessage, toCollectionTitle } from '../utils.js'
 import { mergeMetadata } from '../types.js'
 import type { Sidecar } from '../types.js'
 import { log } from '../logger.js'
@@ -57,13 +57,17 @@ function printPublishTable(photos: ApprovedPhoto[]): void {
   }
 }
 
-async function publishSinglePhoto(photo: ApprovedPhoto, config: Config): Promise<boolean> {
+async function publishSinglePhoto(
+  photo: ApprovedPhoto,
+  config: Config,
+  collectionId: string | null,
+): Promise<boolean> {
   const effective = mergeMetadata(photo.sidecar.ai, photo.sidecar.userEdits)
   const s = spinner()
   s.start(`Publishing: ${photo.collection}/${photo.filename}`)
 
   try {
-    const result = await publishPhoto(photo.filePath, photo.sidecar, config)
+    const result = await publishPhoto(photo.filePath, photo.sidecar, config, { collectionId })
     await markPublished(photo.sidecarPath, photo.sidecar, result)
     s.stop(`Published: ${effective.title} (${result.entryId})`)
     return true
@@ -136,6 +140,42 @@ export async function runPublish(config: Config, options: PublishOptions): Promi
     }
   }
 
+  // Resolve collections up front with caching — only for photos that need publishing
+  const collectionCache = new Map<string, string | null>()
+  const needsPublish = options.force
+    ? toPublish
+    : toPublish.filter((p) => !p.sidecar.contentful.entryId)
+  const uniqueCollections = [...new Set(needsPublish.map((p) => p.collection))]
+
+  for (const name of uniqueCollections) {
+    const existingId = await findCollection(config, name)
+
+    if (existingId) {
+      collectionCache.set(name, existingId)
+      continue
+    }
+
+    const title = toCollectionTitle(name)
+
+    if (options.all || !process.stdout.isTTY) {
+      log.info(`Creating collection: ${title}`)
+      const newId = await createCollection(config, title)
+      collectionCache.set(name, newId)
+    } else {
+      const create = await confirm({
+        message: `Collection "${title}" doesn't exist. Create it?`,
+      })
+
+      if (isCancel(create) || !create) {
+        collectionCache.set(name, null)
+        continue
+      }
+
+      const newId = await createCollection(config, title)
+      collectionCache.set(name, newId)
+    }
+  }
+
   let published = 0
   let errors = 0
   let skipped = 0
@@ -175,7 +215,8 @@ export async function runPublish(config: Config, options: PublishOptions): Promi
       }
     }
 
-    const ok = await publishSinglePhoto(photo, config)
+    const collectionId = collectionCache.get(photo.collection) ?? null
+    const ok = await publishSinglePhoto(photo, config, collectionId)
     if (ok) {
       published++
     } else {
