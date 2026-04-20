@@ -42,10 +42,16 @@ function getClient(config: Config): PlainClientAPI {
   )
 }
 
+export interface PublishPhotoOptions {
+  /** Pre-resolved collection ID. If provided, skips internal collection lookup. */
+  collectionId?: string | null
+}
+
 export async function publishPhoto(
   filePath: string,
   sidecar: Sidecar,
   config: Config,
+  options?: PublishPhotoOptions,
 ): Promise<PublishResult> {
   const client = getClient(config)
   const effective = mergeMetadata(sidecar.ai, sidecar.userEdits)
@@ -95,7 +101,10 @@ export async function publishPhoto(
     label: 'Contentful asset.publish',
   })
 
-  const collectionId = await resolveCollection(client, sidecar.collection)
+  const collectionId =
+    options?.collectionId !== undefined
+      ? options.collectionId
+      : await resolveCollection(client, sidecar.collection)
 
   const slug = slugify(effective.title, { lower: true, strict: true })
   const entry = await withRetry(
@@ -151,6 +160,14 @@ export async function publishPhoto(
     assetId: latestAsset.sys.id,
     entryId: entry.sys.id,
   }
+}
+
+export async function findCollection(
+  config: Config,
+  collectionName: string,
+): Promise<string | null> {
+  const client = getClient(config)
+  return resolveCollection(client, collectionName)
 }
 
 export async function checkSlugExists(config: Config, slug: string): Promise<string | null> {

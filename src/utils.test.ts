@@ -1,5 +1,27 @@
 import { describe, it, expect } from 'vitest'
-import { errorMessage } from './utils.js'
+import { errorMessage, toCollectionTitle } from './utils.js'
+
+describe('toCollectionTitle', () => {
+  it('converts hyphenated folder name to title case', () => {
+    expect(toCollectionTitle('new-zealand')).toBe('New Zealand')
+  })
+
+  it('converts underscored folder name to title case', () => {
+    expect(toCollectionTitle('south_island')).toBe('South Island')
+  })
+
+  it('handles single word', () => {
+    expect(toCollectionTitle('iceland')).toBe('Iceland')
+  })
+
+  it('handles multiple consecutive separators', () => {
+    expect(toCollectionTitle('new--zealand')).toBe('New Zealand')
+  })
+
+  it('handles mixed separators', () => {
+    expect(toCollectionTitle('new-zealand_north')).toBe('New Zealand North')
+  })
+})
 
 describe('errorMessage', () => {
   it('extracts message from Error instances', () => {

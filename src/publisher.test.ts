@@ -67,7 +67,7 @@ vi.mock('contentful-management', () => ({
   createClient: vi.fn(() => mockClient),
 }))
 
-const { publishPhoto, listCollections, createCollection, checkSlugExists } =
+const { publishPhoto, listCollections, createCollection, checkSlugExists, findCollection } =
   await import('./publisher.js')
 
 function makeConfig(): Config {
@@ -431,5 +431,54 @@ describe('checkSlugExists', () => {
     const result = await checkSlugExists(makeConfig(), 'nonexistent-slug')
 
     expect(result).toBeNull()
+  })
+})
+
+describe('findCollection', () => {
+  it('returns collection ID when slug matches', async () => {
+    mockEntryGetMany.mockResolvedValue({
+      items: [{ sys: { id: 'collection-iceland' } }],
+    })
+
+    const result = await findCollection(makeConfig(), 'iceland')
+
+    expect(result).toBe('collection-iceland')
+  })
+
+  it('returns null when no matching collection exists', async () => {
+    mockEntryGetMany.mockResolvedValue({ items: [] })
+
+    const result = await findCollection(makeConfig(), 'nonexistent')
+
+    expect(result).toBeNull()
+  })
+})
+
+describe('publishPhoto with collectionId option', () => {
+  it('uses provided collectionId instead of resolving from sidecar', async () => {
+    setupPublishMocks()
+
+    await publishPhoto('/photos/iceland/aurora.jpg', makeSidecar(), makeConfig(), {
+      collectionId: 'pre-resolved-collection',
+    })
+
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.collections['en-US']).toEqual([
+      { sys: { type: 'Link', linkType: 'Entry', id: 'pre-resolved-collection' } },
+    ])
+    // Should NOT have queried for collection since we provided the ID
+    expect(mockEntryGetMany).not.toHaveBeenCalled()
+  })
+
+  it('omits collection link when collectionId is null', async () => {
+    setupPublishMocks()
+
+    await publishPhoto('/photos/iceland/aurora.jpg', makeSidecar(), makeConfig(), {
+      collectionId: null,
+    })
+
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.collections).toBeUndefined()
+    expect(mockEntryGetMany).not.toHaveBeenCalled()
   })
 })
