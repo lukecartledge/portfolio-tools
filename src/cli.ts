@@ -15,6 +15,7 @@ import {
 import { analyzePhoto } from './analyzer.js'
 import { publishPhoto } from './publisher.js'
 import { startWatcher } from './watcher.js'
+import { startServer } from './server/start.js'
 import { errorMessage } from './utils.js'
 
 import 'dotenv/config'
@@ -36,7 +37,7 @@ function readPackageVersion(): string {
 
 const VERSION = readPackageVersion()
 
-const COMMANDS = ['analyze', 'watch', 'publish'] as const
+const COMMANDS = ['analyze', 'watch', 'publish', 'dev'] as const
 type Command = (typeof COMMANDS)[number]
 
 function isCommand(value: string): value is Command {
@@ -47,6 +48,14 @@ const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   analyze: 'Scan watch directory and analyze new photos',
   watch: 'Watch directory for new photos (continuous)',
   publish: 'Publish approved photos to Contentful',
+  dev: 'Start watcher and review server together',
+}
+
+const COMMAND_OPTIONS: Record<Command, string> = {
+  analyze: '',
+  watch: '',
+  publish: '',
+  dev: '  --port <port>    Server port (default: 3000)\n',
 }
 
 function parseCliArgs() {
@@ -58,6 +67,7 @@ function parseCliArgs() {
         version: { type: 'boolean', short: 'v', default: false },
         dir: { type: 'string' },
         verbose: { type: 'boolean', default: false },
+        port: { type: 'string' },
       },
       strict: true,
       allowPositionals: true,
@@ -89,9 +99,12 @@ if (values.help) {
   process.exit(0)
 }
 
-// Override watch directory from --dir flag
+// Override config from CLI flags
 if (values.dir) {
   process.env.WATCH_DIR = values.dir
+}
+if (values.port) {
+  process.env.PORT = values.port
 }
 
 const config = loadConfig()
@@ -105,6 +118,9 @@ switch (command) {
     break
   case 'publish':
     await runPublish()
+    break
+  case 'dev':
+    runDev()
     break
 }
 
@@ -130,12 +146,14 @@ Run 'portfolio-tools <command> --help' for command-specific options.`)
 }
 
 function printCommandHelp(cmd: Command): void {
+  const extra = COMMAND_OPTIONS[cmd]
+
   console.log(`Usage: portfolio-tools ${cmd} [options]
 
 ${COMMAND_DESCRIPTIONS[cmd]}
 
 Options:
-  --dir <path>     Override watch directory
+${extra}  --dir <path>     Override watch directory
   --verbose        Enable verbose output
   -h, --help       Show help`)
 }
@@ -236,4 +254,22 @@ async function runPublish() {
   }
 
   console.log(`\nDone. Published: ${published}, Errors: ${errors}`)
+}
+
+function runDev(): void {
+  const watcher = startWatcher(config)
+  const server = startServer(config)
+  console.log('Press Ctrl+C to stop.\n')
+
+  let shuttingDown = false
+  const shutdown = () => {
+    if (shuttingDown) return
+    shuttingDown = true
+    console.log('\nShutting down...')
+    server.close()
+    void watcher.close()
+  }
+
+  process.on('SIGINT', shutdown)
+  process.on('SIGTERM', shutdown)
 }

@@ -7,7 +7,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "tsx src/server/index.ts",
+    "dev": "tsx src/cli.ts dev",
     "analyze": "tsx src/cli.ts analyze",
     "watch": "tsx src/cli.ts watch",
     "publish": "tsx src/cli.ts publish",
