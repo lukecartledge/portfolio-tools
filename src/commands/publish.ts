@@ -8,6 +8,7 @@ import { publishPhoto } from '../publisher.js'
 import { errorMessage } from '../utils.js'
 import { mergeMetadata } from '../types.js'
 import type { Sidecar } from '../types.js'
+import { log } from '../logger.js'
 
 interface ApprovedPhoto {
   filePath: string
@@ -49,9 +50,9 @@ async function scanApprovedPhotos(watchDir: string): Promise<ApprovedPhoto[]> {
 function printPublishTable(photos: ApprovedPhoto[]): void {
   for (const photo of photos) {
     const effective = mergeMetadata(photo.sidecar.ai, photo.sidecar.userEdits)
-    console.log(`  ${photo.collection}/${photo.filename}`)
-    console.log(`    Title: ${effective.title}`)
-    console.log(`    Tags:  ${effective.tags.join(', ') || '(none)'}`)
+    log.info(`  ${photo.collection}/${photo.filename}`)
+    log.info(`    Title: ${effective.title}`)
+    log.info(`    Tags:  ${effective.tags.join(', ') || '(none)'}`)
   }
 }
 
@@ -80,11 +81,11 @@ export async function runPublish(config: Config, options: PublishOptions): Promi
   const photos = await scanApprovedPhotos(config.watchDir)
 
   if (photos.length === 0) {
-    console.log('No approved photos to publish.')
+    log.info('No approved photos to publish.')
     return
   }
 
-  console.log(`Found ${photos.length} approved photo${photos.length === 1 ? '' : 's'}:\n`)
+  log.info(`Found ${photos.length} approved photo${photos.length === 1 ? '' : 's'}:\n`)
   printPublishTable(photos)
 
   if (options.dryRun) {
@@ -96,7 +97,7 @@ export async function runPublish(config: Config, options: PublishOptions): Promi
   if (options.all || !process.stdout.isTTY) {
     toPublish = photos
   } else {
-    console.log()
+    log.info('')
     const selected = await multiselect({
       message: 'Select photos to publish:',
       options: photos.map((photo) => {
@@ -118,7 +119,7 @@ export async function runPublish(config: Config, options: PublishOptions): Promi
   }
 
   if (toPublish.length === 0) {
-    console.log('No photos selected.')
+    log.info('No photos selected.')
     return
   }
 
@@ -145,5 +146,5 @@ export async function runPublish(config: Config, options: PublishOptions): Promi
     }
   }
 
-  console.log(`\nDone. Published: ${published}, Errors: ${errors}`)
+  log.info(`\nDone. Published: ${published}, Errors: ${errors}`)
 }

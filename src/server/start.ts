@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import type { Config } from '../config.js'
 import { createApi } from './api.js'
+import { log } from '../logger.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -20,6 +21,6 @@ export function startServer(config: Config): ServerType {
     return c.html(html)
   })
 
-  console.log(`Portfolio Tools running at http://localhost:${config.port}`)
+  log.info(`Portfolio Tools running at http://localhost:${config.port}`)
   return serve({ fetch: app.fetch, port: config.port })
 }

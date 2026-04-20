@@ -6,9 +6,10 @@ import { IMAGE_EXTENSIONS } from '../config.js'
 import { hasSidecar, sidecarPathFor, writeSidecar, createEmptySidecar } from '../sidecar.js'
 import { analyzePhoto } from '../analyzer.js'
 import { errorMessage } from '../utils.js'
+import { log } from '../logger.js'
 
 export async function runAnalyze(config: Config): Promise<void> {
-  console.log(`Scanning: ${config.watchDir}\n`)
+  log.info(`Scanning: ${config.watchDir}\n`)
 
   const collections = await readdir(config.watchDir)
   let analyzed = 0
@@ -55,7 +56,7 @@ export async function runAnalyze(config: Config): Promise<void> {
     }
   }
 
-  console.log(
+  log.info(
     `\nDone. Analyzed: ${analyzed}, Skipped: ${skipped}${failed > 0 ? `, Failed: ${failed}` : ''}`,
   )
 }
