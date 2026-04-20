@@ -64,9 +64,7 @@ const {
 })
 
 vi.mock('contentful-management', () => ({
-  default: {
-    createClient: vi.fn(() => mockClient),
-  },
+  createClient: vi.fn(() => mockClient),
 }))
 
 const { publishPhoto, listCollections, createCollection } = await import('./publisher.js')
