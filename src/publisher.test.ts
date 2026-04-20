@@ -102,7 +102,7 @@ function makeSidecar(overrides?: Partial<Sidecar>): Sidecar {
       title: 'Northern Lights',
       caption: 'Aurora borealis dancing across the sky',
       tags: ['aurora', 'iceland', 'night'],
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       generatedAt: '2026-03-15T15:00:00.000Z',
     },
     contentful: {
@@ -298,7 +298,7 @@ describe('publishPhoto', () => {
         title: 'No Tags',
         caption: 'A photo with no tags',
         tags: [],
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         generatedAt: '2026-03-15T15:00:00.000Z',
       },
     })
