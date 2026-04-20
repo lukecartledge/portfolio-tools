@@ -165,11 +165,12 @@ ${extra}  --dir <path>     Override watch directory
 }
 
 async function runAnalyze() {
-  console.log(`Scanning: ${config.watchDir}`)
+  console.log(`Scanning: ${config.watchDir}\n`)
 
   const collections = await readdir(config.watchDir)
   let analyzed = 0
   let skipped = 0
+  let failed = 0
 
   for (const collectionName of collections) {
     const collectionPath = join(config.watchDir, collectionName)
@@ -189,7 +190,8 @@ async function runAnalyze() {
         continue
       }
 
-      console.log(`\nAnalyzing: ${collectionName}/${file}`)
+      const s = spinner()
+      s.start(`Analyzing: ${collectionName}/${file}`)
       const sidecar = createEmptySidecar(file, collectionName)
 
       try {
@@ -200,17 +202,19 @@ async function runAnalyze() {
         sidecar.exif = exif
         sidecar.ai = ai
         await writeSidecar(sidecarPathFor(filePath), sidecar)
-        console.log(`  Title: ${ai.title}`)
-        console.log(`  Tags: ${ai.tags.join(', ')}`)
+        s.stop(`${collectionName}/${file} — ${ai.title} [${ai.tags.join(', ')}]`)
         analyzed++
       } catch (error) {
-        console.error(`  Failed: ${errorMessage(error)}`)
         await writeSidecar(sidecarPathFor(filePath), sidecar)
+        s.stop(`${collectionName}/${file} — failed: ${errorMessage(error)}`)
+        failed++
       }
     }
   }
 
-  console.log(`\nDone. Analyzed: ${analyzed}, Skipped: ${skipped}`)
+  console.log(
+    `\nDone. Analyzed: ${analyzed}, Skipped: ${skipped}${failed > 0 ? `, Failed: ${failed}` : ''}`,
+  )
 }
 
 function runWatch() {
