@@ -59,6 +59,9 @@ npm run analyze
 
 # Override the watch directory:
 npm run analyze -- --dir ~/Desktop/test-photos
+
+# Re-analyze photos that already have sidecars (preserves user edits):
+npm run analyze -- --force
 ```
 
 ### Watch for new photos
@@ -119,6 +122,9 @@ Commands:
   watch            Watch directory for new photos (continuous)
   publish          Publish approved photos to Contentful
   dev              Start watcher and review server together
+
+analyze options:
+  --force          Re-analyze photos that already have sidecars
 
 publish options:
   --dry-run        Show what would be published without publishing
