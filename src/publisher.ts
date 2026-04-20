@@ -220,10 +220,20 @@ export async function listCollections(
   }))
 }
 
-export async function createCollection(config: Config, title: string): Promise<string> {
+export interface CreateCollectionOptions {
+  /** Collection description text */
+  description?: string
+}
+
+export async function createCollection(
+  config: Config,
+  title: string,
+  options?: CreateCollectionOptions,
+): Promise<string> {
   const client = getClient(config)
 
   const slug = slugify(title, { lower: true, strict: true })
+  const displayOrder = await nextDisplayOrder(client)
 
   const entry = await withRetry(
     () =>
@@ -233,6 +243,15 @@ export async function createCollection(config: Config, title: string): Promise<s
           fields: {
             title: { [CONTENTFUL_LOCALE]: title },
             slug: { [CONTENTFUL_LOCALE]: slug },
+            displayOrder: { [CONTENTFUL_LOCALE]: displayOrder },
+            featured: { [CONTENTFUL_LOCALE]: false },
+            seoMetaTitle: { [CONTENTFUL_LOCALE]: title },
+            ...(options?.description
+              ? {
+                  description: { [CONTENTFUL_LOCALE]: options.description },
+                  seoMetaDescription: { [CONTENTFUL_LOCALE]: options.description },
+                }
+              : {}),
           },
         },
       ),
@@ -259,7 +278,9 @@ export async function updateCollectionWithPhoto(
     label: 'Contentful entry.get (collection)',
   })
 
-  type Link = { sys: { type: string; linkType: string; id: string } }
+  interface Link {
+    sys: { type: string; linkType: string; id: string }
+  }
   const photosField = collection.fields.photos as Record<string, Link[]> | undefined
   const existingPhotos = photosField?.[CONTENTFUL_LOCALE] ?? []
 
@@ -303,6 +324,25 @@ export async function updateCollectionWithPhoto(
     ...retryOpts,
     label: 'Contentful entry.publish (collection)',
   })
+}
+
+async function nextDisplayOrder(client: PlainClientAPI): Promise<number> {
+  const entries = await withRetry(
+    () =>
+      client.entry.getMany({
+        query: { content_type: COLLECTION_CONTENT_TYPE },
+      }),
+    { ...retryOpts, label: 'Contentful entry.getMany (displayOrder)' },
+  )
+
+  let max = 0
+  for (const entry of entries.items) {
+    const order = (entry.fields.displayOrder as Record<string, number> | undefined)?.[
+      CONTENTFUL_LOCALE
+    ]
+    if (order != null && order > max) max = order
+  }
+  return max + 1
 }
 
 async function resolveCollection(

@@ -433,7 +433,8 @@ describe('listCollections', () => {
 })
 
 describe('createCollection', () => {
-  it('creates entry with title and slug then publishes', async () => {
+  it('creates entry with enriched fields then publishes', async () => {
+    mockEntryGetMany.mockResolvedValue({ items: [] })
     mockEntryCreate.mockResolvedValue({
       sys: { id: 'new-collection-1' },
     })
@@ -449,6 +450,9 @@ describe('createCollection', () => {
         fields: {
           title: { 'en-US': 'New Zealand' },
           slug: { 'en-US': 'new-zealand' },
+          displayOrder: { 'en-US': 1 },
+          featured: { 'en-US': false },
+          seoMetaTitle: { 'en-US': 'New Zealand' },
         },
       },
     )
@@ -457,6 +461,51 @@ describe('createCollection', () => {
       { sys: { id: 'new-collection-1' } },
     )
     expect(id).toBe('new-collection-1')
+  })
+
+  it('auto-increments displayOrder from existing collections', async () => {
+    mockEntryGetMany.mockResolvedValue({
+      items: [
+        { sys: { id: 'c1' }, fields: { displayOrder: { 'en-US': 3 } } },
+        { sys: { id: 'c2' }, fields: { displayOrder: { 'en-US': 7 } } },
+        { sys: { id: 'c3' }, fields: {} },
+      ],
+    })
+    mockEntryCreate.mockResolvedValue({ sys: { id: 'new-collection' } })
+    mockEntryPublish.mockResolvedValue({})
+
+    await createCollection(makeConfig(), 'Norway')
+
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.displayOrder['en-US']).toBe(8)
+  })
+
+  it('includes description and seoMetaDescription when provided', async () => {
+    mockEntryGetMany.mockResolvedValue({ items: [] })
+    mockEntryCreate.mockResolvedValue({ sys: { id: 'new-collection' } })
+    mockEntryPublish.mockResolvedValue({})
+
+    await createCollection(makeConfig(), 'Norway', {
+      description: 'Dramatic fjords and northern lights across Norway.',
+    })
+
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.description['en-US']).toBe('Dramatic fjords and northern lights across Norway.')
+    expect(fields.seoMetaDescription['en-US']).toBe(
+      'Dramatic fjords and northern lights across Norway.',
+    )
+  })
+
+  it('omits description fields when not provided', async () => {
+    mockEntryGetMany.mockResolvedValue({ items: [] })
+    mockEntryCreate.mockResolvedValue({ sys: { id: 'new-collection' } })
+    mockEntryPublish.mockResolvedValue({})
+
+    await createCollection(makeConfig(), 'Norway')
+
+    const fields = mockEntryCreate.mock.calls[0]?.[1].fields
+    expect(fields.description).toBeUndefined()
+    expect(fields.seoMetaDescription).toBeUndefined()
   })
 })
 
