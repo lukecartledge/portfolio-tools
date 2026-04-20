@@ -2,7 +2,15 @@ import 'dotenv/config'
 import { createClient } from 'contentful-management'
 import type { PlainClientAPI } from 'contentful-management'
 import { log } from './logger.js'
-import { PHOTO_CONTENT_TYPE, COLLECTION_CONTENT_TYPE } from './config.js'
+import {
+  PHOTO_CONTENT_TYPE,
+  COLLECTION_CONTENT_TYPE,
+  MAX_RETRIES,
+  RETRY_BASE_DELAY_MS,
+} from './config.js'
+import { withRetry } from './retry.js'
+
+const retryOpts = { maxRetries: MAX_RETRIES, baseDelayMs: RETRY_BASE_DELAY_MS }
 
 function getClient(): PlainClientAPI {
   const spaceId = process.env.CONTENTFUL_SPACE_ID
@@ -20,7 +28,10 @@ function getClient(): PlainClientAPI {
 
 async function contentTypeExists(client: PlainClientAPI, id: string): Promise<boolean> {
   try {
-    await client.contentType.get({ contentTypeId: id })
+    await withRetry(() => client.contentType.get({ contentTypeId: id }), {
+      ...retryOpts,
+      label: `Contentful contentType.get(${id})`,
+    })
     return true
   } catch {
     return false
@@ -34,38 +45,45 @@ async function createCollectionType(client: PlainClientAPI): Promise<void> {
   }
 
   log.info(`  Creating "${COLLECTION_CONTENT_TYPE}"...`)
-  const ct = await client.contentType.createWithId(
-    { contentTypeId: COLLECTION_CONTENT_TYPE },
-    {
-      name: 'Collection',
-      displayField: 'title',
-      fields: [
+  const ct = await withRetry(
+    () =>
+      client.contentType.createWithId(
+        { contentTypeId: COLLECTION_CONTENT_TYPE },
         {
-          id: 'title',
-          name: 'Title',
-          type: 'Symbol',
-          required: true,
-          localized: true,
+          name: 'Collection',
+          displayField: 'title',
+          fields: [
+            {
+              id: 'title',
+              name: 'Title',
+              type: 'Symbol',
+              required: true,
+              localized: true,
+            },
+            {
+              id: 'slug',
+              name: 'Slug',
+              type: 'Symbol',
+              required: true,
+              localized: false,
+              validations: [{ unique: true }],
+            },
+            {
+              id: 'description',
+              name: 'Description',
+              type: 'Text',
+              required: false,
+              localized: true,
+            },
+          ],
         },
-        {
-          id: 'slug',
-          name: 'Slug',
-          type: 'Symbol',
-          required: true,
-          localized: false,
-          validations: [{ unique: true }],
-        },
-        {
-          id: 'description',
-          name: 'Description',
-          type: 'Text',
-          required: false,
-          localized: true,
-        },
-      ],
-    },
+      ),
+    { ...retryOpts, label: 'Contentful contentType.createWithId(collection)' },
   )
-  await client.contentType.publish({ contentTypeId: COLLECTION_CONTENT_TYPE }, ct)
+  await withRetry(
+    () => client.contentType.publish({ contentTypeId: COLLECTION_CONTENT_TYPE }, ct),
+    { ...retryOpts, label: 'Contentful contentType.publish(collection)' },
+  )
   log.info(`  Published "${COLLECTION_CONTENT_TYPE}"`)
 }
 
@@ -76,137 +94,144 @@ async function createPhotoType(client: PlainClientAPI): Promise<void> {
   }
 
   log.info(`  Creating "${PHOTO_CONTENT_TYPE}"...`)
-  const ct = await client.contentType.createWithId(
-    { contentTypeId: PHOTO_CONTENT_TYPE },
-    {
-      name: 'Photo',
-      displayField: 'title',
-      fields: [
+  const ct = await withRetry(
+    () =>
+      client.contentType.createWithId(
+        { contentTypeId: PHOTO_CONTENT_TYPE },
         {
-          id: 'title',
-          name: 'Title',
-          type: 'Symbol',
-          required: true,
-          localized: true,
+          name: 'Photo',
+          displayField: 'title',
+          fields: [
+            {
+              id: 'title',
+              name: 'Title',
+              type: 'Symbol',
+              required: true,
+              localized: true,
+            },
+            {
+              id: 'slug',
+              name: 'Slug',
+              type: 'Symbol',
+              required: true,
+              localized: false,
+              validations: [{ unique: true }],
+            },
+            {
+              id: 'image',
+              name: 'Image',
+              type: 'Link',
+              linkType: 'Asset',
+              required: true,
+              localized: false,
+              validations: [{ linkMimetypeGroup: ['image'] }],
+            },
+            {
+              id: 'caption',
+              name: 'Caption',
+              type: 'Text',
+              required: false,
+              localized: true,
+            },
+            {
+              id: 'location',
+              name: 'Location',
+              type: 'Symbol',
+              required: false,
+              localized: true,
+            },
+            {
+              id: 'dateTaken',
+              name: 'Date Taken',
+              type: 'Date',
+              required: false,
+              localized: false,
+            },
+            {
+              id: 'camera',
+              name: 'Camera',
+              type: 'Symbol',
+              required: false,
+              localized: false,
+            },
+            {
+              id: 'lens',
+              name: 'Lens',
+              type: 'Symbol',
+              required: false,
+              localized: false,
+            },
+            {
+              id: 'aperture',
+              name: 'Aperture',
+              type: 'Symbol',
+              required: false,
+              localized: false,
+            },
+            {
+              id: 'shutterSpeed',
+              name: 'Shutter Speed',
+              type: 'Symbol',
+              required: false,
+              localized: false,
+            },
+            {
+              id: 'iso',
+              name: 'ISO',
+              type: 'Integer',
+              required: false,
+              localized: false,
+            },
+            {
+              id: 'focalLength',
+              name: 'Focal Length',
+              type: 'Symbol',
+              required: false,
+              localized: false,
+            },
+            {
+              id: 'tags',
+              name: 'Tags',
+              type: 'Array',
+              required: false,
+              localized: true,
+              items: { type: 'Symbol', validations: [] },
+            },
+            {
+              id: 'collections',
+              name: 'Collections',
+              type: 'Array',
+              required: false,
+              localized: false,
+              items: {
+                type: 'Link',
+                linkType: 'Entry',
+                validations: [{ linkContentType: [COLLECTION_CONTENT_TYPE] }],
+              },
+            },
+            {
+              id: 'featured',
+              name: 'Featured',
+              type: 'Boolean',
+              required: false,
+              localized: false,
+            },
+            {
+              id: 'displayOrder',
+              name: 'Display Order',
+              type: 'Integer',
+              required: false,
+              localized: false,
+            },
+          ],
         },
-        {
-          id: 'slug',
-          name: 'Slug',
-          type: 'Symbol',
-          required: true,
-          localized: false,
-          validations: [{ unique: true }],
-        },
-        {
-          id: 'image',
-          name: 'Image',
-          type: 'Link',
-          linkType: 'Asset',
-          required: true,
-          localized: false,
-          validations: [{ linkMimetypeGroup: ['image'] }],
-        },
-        {
-          id: 'caption',
-          name: 'Caption',
-          type: 'Text',
-          required: false,
-          localized: true,
-        },
-        {
-          id: 'location',
-          name: 'Location',
-          type: 'Symbol',
-          required: false,
-          localized: true,
-        },
-        {
-          id: 'dateTaken',
-          name: 'Date Taken',
-          type: 'Date',
-          required: false,
-          localized: false,
-        },
-        {
-          id: 'camera',
-          name: 'Camera',
-          type: 'Symbol',
-          required: false,
-          localized: false,
-        },
-        {
-          id: 'lens',
-          name: 'Lens',
-          type: 'Symbol',
-          required: false,
-          localized: false,
-        },
-        {
-          id: 'aperture',
-          name: 'Aperture',
-          type: 'Symbol',
-          required: false,
-          localized: false,
-        },
-        {
-          id: 'shutterSpeed',
-          name: 'Shutter Speed',
-          type: 'Symbol',
-          required: false,
-          localized: false,
-        },
-        {
-          id: 'iso',
-          name: 'ISO',
-          type: 'Integer',
-          required: false,
-          localized: false,
-        },
-        {
-          id: 'focalLength',
-          name: 'Focal Length',
-          type: 'Symbol',
-          required: false,
-          localized: false,
-        },
-        {
-          id: 'tags',
-          name: 'Tags',
-          type: 'Array',
-          required: false,
-          localized: true,
-          items: { type: 'Symbol', validations: [] },
-        },
-        {
-          id: 'collections',
-          name: 'Collections',
-          type: 'Array',
-          required: false,
-          localized: false,
-          items: {
-            type: 'Link',
-            linkType: 'Entry',
-            validations: [{ linkContentType: [COLLECTION_CONTENT_TYPE] }],
-          },
-        },
-        {
-          id: 'featured',
-          name: 'Featured',
-          type: 'Boolean',
-          required: false,
-          localized: false,
-        },
-        {
-          id: 'displayOrder',
-          name: 'Display Order',
-          type: 'Integer',
-          required: false,
-          localized: false,
-        },
-      ],
-    },
+      ),
+    { ...retryOpts, label: 'Contentful contentType.createWithId(photo)' },
   )
-  await client.contentType.publish({ contentTypeId: PHOTO_CONTENT_TYPE }, ct)
+  await withRetry(() => client.contentType.publish({ contentTypeId: PHOTO_CONTENT_TYPE }, ct), {
+    ...retryOpts,
+    label: 'Contentful contentType.publish(photo)',
+  })
   log.info(`  Published "${PHOTO_CONTENT_TYPE}"`)
 }
 
