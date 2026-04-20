@@ -51,7 +51,7 @@ export const PHOTO_CONTENT_TYPE = 'photo'
 export const COLLECTION_CONTENT_TYPE = 'collection'
 
 /** Claude model for vision analysis */
-export const VISION_MODEL = 'claude-sonnet-4-20250514'
+export const VISION_MODEL = 'claude-sonnet-4-6'
 
 /** Max image dimension for AI vision input */
 export const VISION_MAX_DIMENSION = 1568
