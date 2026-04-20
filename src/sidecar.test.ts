@@ -130,7 +130,7 @@ describe('writeSidecar and readSidecar', () => {
         title: 'Northern Lights',
         caption: 'Aurora borealis over the lagoon',
         tags: ['aurora', 'iceland'],
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         generatedAt: '2026-04-19T10:00:00Z',
       },
     })
@@ -255,7 +255,7 @@ describe('patchSidecar', () => {
         title: 'Test',
         caption: 'Test caption',
         tags: ['test'],
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         generatedAt: '2026-04-19T10:00:00Z',
       },
     })

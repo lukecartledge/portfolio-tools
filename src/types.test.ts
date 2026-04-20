@@ -7,7 +7,7 @@ function makeAi(overrides?: Partial<AiMetadata>): AiMetadata {
     title: 'AI Title',
     caption: 'AI caption text',
     tags: ['landscape', 'mountains'],
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     generatedAt: '2026-04-19T10:00:00Z',
     ...overrides,
   }

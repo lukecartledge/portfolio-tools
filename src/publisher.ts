@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs'
 import { basename, extname } from 'node:path'
-import contentful from 'contentful-management'
+import { createClient } from 'contentful-management'
 import type { PlainClientAPI } from 'contentful-management'
 import slugify from 'slugify'
 import type { Config } from './config.js'
@@ -21,7 +21,7 @@ function localField<T>(value: T | null | undefined): Record<string, T> | undefin
 }
 
 function getClient(config: Config): PlainClientAPI {
-  return contentful.createClient(
+  return createClient(
     {
       accessToken: config.contentful.managementToken,
     },

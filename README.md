@@ -30,12 +30,27 @@ PORT=3000
 
 ## Usage
 
+All commands accept `--dir <path>` to override the watch directory and `--verbose` for extra output.
+
+```bash
+portfolio-tools <command> [options]
+```
+
+Or via npm scripts (which use `tsx` under the hood):
+
+```bash
+npm run <command>
+```
+
 ### Analyze photos
 
-Scan the watch directory and generate metadata for any photos that don't have a sidecar JSON yet:
+Scan the watch directory and generate metadata for any photos that don't have a sidecar JSON yet. Each photo gets an animated spinner while Claude Vision processes it.
 
 ```bash
 npm run analyze
+
+# Override the watch directory:
+npm run analyze -- --dir ~/Desktop/test-photos
 ```
 
 ### Watch for new photos
@@ -50,10 +65,13 @@ The watcher waits for files to stabilize (3s) before processing, so partially-wr
 
 ### Review in the browser
 
-Start the local review server:
+Start the watcher and local review server together:
 
 ```bash
 npm run dev
+
+# Use a different port:
+npm run dev -- --port 8080
 ```
 
 Open http://localhost:3000. The UI shows all photos with their AI-generated metadata. You can:
@@ -64,10 +82,42 @@ Open http://localhost:3000. The UI shows all photos with their AI-generated meta
 
 ### Publish approved photos
 
-Publish all approved photos to Contentful from the command line (alternative to the UI):
+Publish approved photos to Contentful from the command line (alternative to the UI):
 
 ```bash
+# Interactive mode — select photos, confirm before publishing:
 npm run publish
+
+# Preview what would be published without actually publishing:
+npm run publish -- --dry-run
+
+# Publish all approved photos without prompts (good for CI):
+npm run publish -- --all
+```
+
+In interactive mode (TTY), you get a multi-select prompt to pick which photos to publish, then a confirmation step. In non-TTY environments (pipes, CI), `--all` behavior is used automatically.
+
+### CLI reference
+
+```
+Global options:
+  -h, --help       Show help
+  -v, --version    Show version
+  --dir <path>     Override watch directory (default: WATCH_DIR env var)
+  --verbose        Enable verbose output
+
+Commands:
+  analyze          Scan watch directory and analyze new photos
+  watch            Watch directory for new photos (continuous)
+  publish          Publish approved photos to Contentful
+  dev              Start watcher and review server together
+
+publish options:
+  --dry-run        Show what would be published without publishing
+  --all            Publish all approved photos without prompts
+
+dev options:
+  --port <port>    Server port (default: 3000)
 ```
 
 ## Folder structure
@@ -129,6 +179,8 @@ By default, Lightroom strips GPS data on export. To preserve location coordinate
 ## Development
 
 ```bash
-npm run build    # type-check (tsc --noEmit)
-npm run lint     # prettier + type-check
+npm test             # run tests (vitest)
+npm run test:watch   # run tests in watch mode
+npm run build        # type-check (tsc --noEmit)
+npm run lint         # prettier + eslint + type-check
 ```

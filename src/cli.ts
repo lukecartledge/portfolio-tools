@@ -1,141 +1,155 @@
-import { readdir, stat } from 'node:fs/promises'
-import { join, extname } from 'node:path'
-import { loadConfig, IMAGE_EXTENSIONS } from './config.js'
-import {
-  hasSidecar,
-  sidecarPathFor,
-  readSidecar,
-  writeSidecar,
-  createEmptySidecar,
-  markPublished,
-} from './sidecar.js'
-import { analyzePhoto } from './analyzer.js'
-import { publishPhoto } from './publisher.js'
-import { startWatcher } from './watcher.js'
-import { errorMessage } from './utils.js'
+import { parseArgs } from 'node:util'
+import { readFileSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { loadConfig } from './config.js'
+import { runAnalyze } from './commands/analyze.js'
+import { runWatch } from './commands/watch.js'
+import { runPublish } from './commands/publish.js'
+import { runDev } from './commands/dev.js'
 
 import 'dotenv/config'
 
-const command = process.argv[2]
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
-if (!command || !['analyze', 'watch', 'publish'].includes(command)) {
-  console.log(`Usage: portfolio-tools <command>
+function readPackageVersion(): string {
+  const raw: unknown = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'))
+  if (
+    typeof raw === 'object' &&
+    raw !== null &&
+    'version' in raw &&
+    typeof raw.version === 'string'
+  ) {
+    return raw.version
+  }
+  return '0.0.0'
+}
 
-Commands:
-  analyze   Scan watch directory and analyze new photos
-  watch     Watch directory for new photos (continuous)
-  publish   Publish all approved photos to Contentful`)
-  process.exit(1)
+const VERSION = readPackageVersion()
+
+const COMMANDS = ['analyze', 'watch', 'publish', 'dev'] as const
+type Command = (typeof COMMANDS)[number]
+
+function isCommand(value: string): value is Command {
+  return (COMMANDS as readonly string[]).includes(value)
+}
+
+const COMMAND_DESCRIPTIONS: Record<Command, string> = {
+  analyze: 'Scan watch directory and analyze new photos',
+  watch: 'Watch directory for new photos (continuous)',
+  publish: 'Publish approved photos to Contentful',
+  dev: 'Start watcher and review server together',
+}
+
+const COMMAND_OPTIONS: Record<Command, string> = {
+  analyze: '',
+  watch: '',
+  publish:
+    '  --dry-run        Show what would be published without publishing\n  --all            Publish all approved photos without prompts\n',
+  dev: '  --port <port>    Server port (default: 3000)\n',
+}
+
+function parseCliArgs() {
+  try {
+    return parseArgs({
+      args: process.argv.slice(2),
+      options: {
+        help: { type: 'boolean', short: 'h', default: false },
+        version: { type: 'boolean', short: 'v', default: false },
+        dir: { type: 'string' },
+        verbose: { type: 'boolean', default: false },
+        port: { type: 'string' },
+        'dry-run': { type: 'boolean', default: false },
+        all: { type: 'boolean', default: false },
+      },
+      strict: true,
+      allowPositionals: true,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error(`Error: ${message}\n`)
+    printGlobalHelp()
+    process.exit(1)
+  }
+}
+
+const { values, positionals } = parseCliArgs()
+
+if (values.version) {
+  console.log(`portfolio-tools v${VERSION}`)
+  process.exit(0)
+}
+
+const command = positionals[0]
+
+if (!command || !isCommand(command)) {
+  printGlobalHelp()
+  process.exit(values.help ? 0 : 1)
+}
+
+if (values.help) {
+  printCommandHelp(command)
+  process.exit(0)
+}
+
+// Override config from CLI flags
+if (values.dir) {
+  process.env.WATCH_DIR = values.dir
+}
+if (values.port) {
+  process.env.PORT = values.port
 }
 
 const config = loadConfig()
 
 switch (command) {
   case 'analyze':
-    await runAnalyze()
+    await runAnalyze(config)
     break
   case 'watch':
-    runWatch()
+    runWatch(config)
     break
   case 'publish':
-    await runPublish()
+    await runPublish(config, {
+      dryRun: values['dry-run'],
+      all: values.all,
+    })
+    break
+  case 'dev':
+    runDev(config)
     break
 }
 
-async function runAnalyze() {
-  console.log(`Scanning: ${config.watchDir}`)
+function printGlobalHelp(): void {
+  const commands = Object.entries(COMMAND_DESCRIPTIONS)
+    .map(([cmd, desc]) => `  ${cmd.padEnd(12)}${desc}`)
+    .join('\n')
 
-  const collections = await readdir(config.watchDir)
-  let analyzed = 0
-  let skipped = 0
+  console.log(`portfolio-tools v${VERSION}
 
-  for (const collectionName of collections) {
-    const collectionPath = join(config.watchDir, collectionName)
-    const collectionStat = await stat(collectionPath).catch(() => null)
-    if (!collectionStat?.isDirectory()) continue
+Usage: portfolio-tools <command> [options]
 
-    const files = await readdir(collectionPath)
+Commands:
+${commands}
 
-    for (const file of files) {
-      const ext = extname(file).toLowerCase()
-      if (!IMAGE_EXTENSIONS.has(ext)) continue
+Options:
+  -h, --help       Show help
+  -v, --version    Show version
+  --dir <path>     Override watch directory
+  --verbose        Enable verbose output
 
-      const filePath = join(collectionPath, file)
-
-      if (hasSidecar(filePath)) {
-        skipped++
-        continue
-      }
-
-      console.log(`\nAnalyzing: ${collectionName}/${file}`)
-      const sidecar = createEmptySidecar(file, collectionName)
-
-      try {
-        const { exif, ai } = await analyzePhoto(filePath, config.anthropic.apiKey, {
-          collection: collectionName,
-          filename: file,
-        })
-        sidecar.exif = exif
-        sidecar.ai = ai
-        await writeSidecar(sidecarPathFor(filePath), sidecar)
-        console.log(`  Title: ${ai.title}`)
-        console.log(`  Tags: ${ai.tags.join(', ')}`)
-        analyzed++
-      } catch (error) {
-        console.error(`  Failed: ${errorMessage(error)}`)
-        await writeSidecar(sidecarPathFor(filePath), sidecar)
-      }
-    }
-  }
-
-  console.log(`\nDone. Analyzed: ${analyzed}, Skipped: ${skipped}`)
+Run 'portfolio-tools <command> --help' for command-specific options.`)
 }
 
-function runWatch() {
-  console.log('Starting watcher (Ctrl+C to stop)...')
-  startWatcher(config)
-}
+function printCommandHelp(cmd: Command): void {
+  const extra = COMMAND_OPTIONS[cmd]
 
-async function runPublish() {
-  console.log(`Publishing approved photos from: ${config.watchDir}`)
+  console.log(`Usage: portfolio-tools ${cmd} [options]
 
-  const collections = await readdir(config.watchDir)
-  let published = 0
-  let errors = 0
+${COMMAND_DESCRIPTIONS[cmd]}
 
-  for (const collectionName of collections) {
-    const collectionPath = join(config.watchDir, collectionName)
-    const collectionStat = await stat(collectionPath).catch(() => null)
-    if (!collectionStat?.isDirectory()) continue
-
-    const files = await readdir(collectionPath)
-
-    for (const file of files) {
-      const ext = extname(file).toLowerCase()
-      if (!IMAGE_EXTENSIONS.has(ext)) continue
-
-      const filePath = join(collectionPath, file)
-      const sidecarPath = sidecarPathFor(filePath)
-
-      if (!hasSidecar(filePath)) continue
-
-      const sidecar = await readSidecar(sidecarPath)
-      if (sidecar.status !== 'approved') continue
-
-      console.log(`\nPublishing: ${collectionName}/${file}`)
-      console.log(`  Title: ${sidecar.ai.title}`)
-
-      try {
-        const result = await publishPhoto(filePath, sidecar, config)
-        await markPublished(sidecarPath, sidecar, result)
-        console.log(`  Published: entry ${result.entryId}`)
-        published++
-      } catch (error) {
-        console.error(`  Failed: ${errorMessage(error)}`)
-        errors++
-      }
-    }
-  }
-
-  console.log(`\nDone. Published: ${published}, Errors: ${errors}`)
+Options:
+${extra}  --dir <path>     Override watch directory
+  --verbose        Enable verbose output
+  -h, --help       Show help`)
 }

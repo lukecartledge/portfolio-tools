@@ -26,7 +26,12 @@
 
 ```
 src/
-  cli.ts          — CLI entry point (analyze/watch/publish commands)
+  cli.ts          — CLI entry point (parseArgs, help, dispatch)
+  commands/
+    analyze.ts    — Scan + AI analyze photos
+    publish.ts    — Publish approved photos to Contentful
+    dev.ts        — Watcher + server together
+    watch.ts      — Continuous folder watcher
   types.ts        — Shared type definitions
   config.ts       — Environment config loader
   watcher.ts      — chokidar folder watcher
