@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { join, extname, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { multiselect, confirm, spinner, isCancel, cancel } from '@clack/prompts'
 import { loadConfig, IMAGE_EXTENSIONS } from './config.js'
 import {
   hasSidecar,
@@ -17,6 +18,8 @@ import { publishPhoto } from './publisher.js'
 import { startWatcher } from './watcher.js'
 import { startServer } from './server/start.js'
 import { errorMessage } from './utils.js'
+import { mergeMetadata } from './types.js'
+import type { Sidecar } from './types.js'
 
 import 'dotenv/config'
 
@@ -54,7 +57,8 @@ const COMMAND_DESCRIPTIONS: Record<Command, string> = {
 const COMMAND_OPTIONS: Record<Command, string> = {
   analyze: '',
   watch: '',
-  publish: '',
+  publish:
+    '  --dry-run        Show what would be published without publishing\n  --all            Publish all approved photos without prompts\n',
   dev: '  --port <port>    Server port (default: 3000)\n',
 }
 
@@ -68,6 +72,8 @@ function parseCliArgs() {
         dir: { type: 'string' },
         verbose: { type: 'boolean', default: false },
         port: { type: 'string' },
+        'dry-run': { type: 'boolean', default: false },
+        all: { type: 'boolean', default: false },
       },
       strict: true,
       allowPositionals: true,
@@ -212,15 +218,20 @@ function runWatch() {
   startWatcher(config)
 }
 
-async function runPublish() {
-  console.log(`Publishing approved photos from: ${config.watchDir}`)
+interface ApprovedPhoto {
+  filePath: string
+  sidecarPath: string
+  collection: string
+  filename: string
+  sidecar: Sidecar
+}
 
-  const collections = await readdir(config.watchDir)
-  let published = 0
-  let errors = 0
+async function scanApprovedPhotos(watchDir: string): Promise<ApprovedPhoto[]> {
+  const collections = await readdir(watchDir)
+  const approved: ApprovedPhoto[] = []
 
   for (const collectionName of collections) {
-    const collectionPath = join(config.watchDir, collectionName)
+    const collectionPath = join(watchDir, collectionName)
     const collectionStat = await stat(collectionPath).catch(() => null)
     if (!collectionStat?.isDirectory()) continue
 
@@ -231,25 +242,110 @@ async function runPublish() {
       if (!IMAGE_EXTENSIONS.has(ext)) continue
 
       const filePath = join(collectionPath, file)
-      const sidecarPath = sidecarPathFor(filePath)
-
       if (!hasSidecar(filePath)) continue
 
+      const sidecarPath = sidecarPathFor(filePath)
       const sidecar = await readSidecar(sidecarPath)
       if (sidecar.status !== 'approved') continue
 
-      console.log(`\nPublishing: ${collectionName}/${file}`)
-      console.log(`  Title: ${sidecar.ai.title}`)
+      approved.push({ filePath, sidecarPath, collection: collectionName, filename: file, sidecar })
+    }
+  }
 
-      try {
-        const result = await publishPhoto(filePath, sidecar, config)
-        await markPublished(sidecarPath, sidecar, result)
-        console.log(`  Published: entry ${result.entryId}`)
-        published++
-      } catch (error) {
-        console.error(`  Failed: ${errorMessage(error)}`)
-        errors++
-      }
+  return approved
+}
+
+function printPublishTable(photos: ApprovedPhoto[]): void {
+  for (const photo of photos) {
+    const effective = mergeMetadata(photo.sidecar.ai, photo.sidecar.userEdits)
+    console.log(`  ${photo.collection}/${photo.filename}`)
+    console.log(`    Title: ${effective.title}`)
+    console.log(`    Tags:  ${effective.tags.join(', ') || '(none)'}`)
+  }
+}
+
+async function publishSinglePhoto(photo: ApprovedPhoto): Promise<boolean> {
+  const effective = mergeMetadata(photo.sidecar.ai, photo.sidecar.userEdits)
+  const s = spinner()
+  s.start(`Publishing: ${photo.collection}/${photo.filename}`)
+
+  try {
+    const result = await publishPhoto(photo.filePath, photo.sidecar, config)
+    await markPublished(photo.sidecarPath, photo.sidecar, result)
+    s.stop(`Published: ${effective.title} (${result.entryId})`)
+    return true
+  } catch (error) {
+    s.stop(`Failed: ${photo.collection}/${photo.filename} — ${errorMessage(error)}`)
+    return false
+  }
+}
+
+async function runPublish() {
+  const photos = await scanApprovedPhotos(config.watchDir)
+
+  if (photos.length === 0) {
+    console.log('No approved photos to publish.')
+    return
+  }
+
+  console.log(`Found ${photos.length} approved photo${photos.length === 1 ? '' : 's'}:\n`)
+  printPublishTable(photos)
+
+  if (values['dry-run']) {
+    return
+  }
+
+  let toPublish: ApprovedPhoto[]
+
+  if (values.all || !process.stdout.isTTY) {
+    toPublish = photos
+  } else {
+    console.log()
+    const selected = await multiselect({
+      message: 'Select photos to publish:',
+      options: photos.map((photo) => {
+        const effective = mergeMetadata(photo.sidecar.ai, photo.sidecar.userEdits)
+        return {
+          value: photo.filePath,
+          label: `${photo.collection}/${photo.filename}`,
+          hint: effective.title,
+        }
+      }),
+    })
+
+    if (isCancel(selected)) {
+      cancel('Publish cancelled.')
+      return
+    }
+
+    toPublish = photos.filter((p) => selected.includes(p.filePath))
+  }
+
+  if (toPublish.length === 0) {
+    console.log('No photos selected.')
+    return
+  }
+
+  if (!values.all && process.stdout.isTTY) {
+    const proceed = await confirm({
+      message: `Publish ${toPublish.length} photo${toPublish.length === 1 ? '' : 's'} to Contentful?`,
+    })
+
+    if (isCancel(proceed) || !proceed) {
+      cancel('Publish cancelled.')
+      return
+    }
+  }
+
+  let published = 0
+  let errors = 0
+
+  for (const photo of toPublish) {
+    const ok = await publishSinglePhoto(photo)
+    if (ok) {
+      published++
+    } else {
+      errors++
     }
   }
 
