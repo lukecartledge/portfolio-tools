@@ -2,8 +2,6 @@
 
 Photo metadata automation for portfolio sites. Watches a folder for new photos, extracts EXIF data, generates titles/captions/tags via Claude Vision, and publishes to Contentful — with a local web UI for human review before anything goes live.
 
-MIT licensed. See [LICENSE](LICENSE).
-
 ## Prerequisites
 
 - Node.js 20+
@@ -251,3 +249,7 @@ Optional:
 | `VISION_MODEL`              | `claude-sonnet-4-6`    | Claude model for vision analysis                |
 | `WRITE_STABILITY_THRESHOLD` | `3000`                 | File write stability threshold (ms)             |
 | `LOG_LEVEL`                 | `info`                 | Log verbosity: debug, info, warn, error, silent |
+
+## License
+
+MIT. See [LICENSE](LICENSE).
