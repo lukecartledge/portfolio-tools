@@ -1,0 +1,79 @@
+name: Dependency Cooldown
+
+on:
+  pull_request:
+  schedule:
+    - cron: '0 8 * * *'
+
+permissions:
+  statuses: write
+  pull-requests: read
+
+jobs:
+  cooldown:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const COOLDOWN_DAYS = 7;
+            const now = new Date();
+
+            if (context.eventName === 'schedule') {
+              // Daily cron: update status on all open Dependabot PRs
+              const { data } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+              });
+              const depPrs = data.filter(pr => pr.user.login === 'dependabot[bot]');
+
+              for (const pr of depPrs) {
+                const ageDays = (now - new Date(pr.created_at)) / 86_400_000;
+                const met = ageDays >= COOLDOWN_DAYS;
+
+                await github.rest.repos.createCommitStatus({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  sha: pr.head.sha,
+                  state: met ? 'success' : 'pending',
+                  description: met
+                    ? `${Math.floor(ageDays)}d old — cooldown passed`
+                    : `${Math.floor(ageDays)}d / ${COOLDOWN_DAYS}d — ${Math.ceil(COOLDOWN_DAYS - ageDays)}d left`,
+                  context: 'dependency-cooldown',
+                });
+                console.log(`PR #${pr.number}: ${Math.floor(ageDays)}d old — ${met ? 'passed' : 'waiting'}`);
+              }
+              return;
+            }
+
+            // PR event
+            const pr = context.payload.pull_request;
+            const isDependabot = pr.user.login === 'dependabot[bot]';
+
+            if (!isDependabot) {
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: pr.head.sha,
+                state: 'success',
+                description: 'Not a dependency update — no cooldown required',
+                context: 'dependency-cooldown',
+              });
+              return;
+            }
+
+            const ageDays = (now - new Date(pr.created_at)) / 86_400_000;
+            const met = ageDays >= COOLDOWN_DAYS;
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: pr.head.sha,
+              state: met ? 'success' : 'pending',
+              description: met
+                ? `${Math.floor(ageDays)}d old — cooldown passed`
+                : `${Math.floor(ageDays)}d / ${COOLDOWN_DAYS}d — ${Math.ceil(COOLDOWN_DAYS - ageDays)}d left`,
+              context: 'dependency-cooldown',
+            });
+            console.log(`PR #${pr.number}: ${Math.floor(ageDays)}d old — ${met ? 'passed' : 'waiting'}`);
