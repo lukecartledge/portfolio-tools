@@ -13,7 +13,17 @@ jobs:
   cooldown:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - name: Fetch Dependabot metadata
+        id: dependabot-metadata
+        if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Evaluate cooldown
+        uses: actions/github-script@v7
+        env:
+          ALERT_STATE: ${{ steps.dependabot-metadata.outputs.alert-state }}
         with:
           script: |
             const COOLDOWN_DAYS = 7;
@@ -29,6 +39,23 @@ jobs:
               const depPrs = data.filter(pr => pr.user.login === 'dependabot[bot]');
 
               for (const pr of depPrs) {
+                // Check if this is a security update by looking for security labels
+                const labels = pr.labels.map(l => l.name);
+                const isSecurity = labels.includes('security');
+
+                if (isSecurity) {
+                  await github.rest.repos.createCommitStatus({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    sha: pr.head.sha,
+                    state: 'success',
+                    description: 'Security update — no cooldown required',
+                    context: 'dependency-cooldown',
+                  });
+                  console.log(`PR #${pr.number}: security update — auto-pass`);
+                  continue;
+                }
+
                 const ageDays = (now - new Date(pr.created_at)) / 86_400_000;
                 const met = ageDays >= COOLDOWN_DAYS;
 
@@ -60,6 +87,21 @@ jobs:
                 description: 'Not a dependency update — no cooldown required',
                 context: 'dependency-cooldown',
               });
+              return;
+            }
+
+            // Security updates auto-pass (alert-state is set for security advisories)
+            const alertState = process.env.ALERT_STATE;
+            if (alertState) {
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: pr.head.sha,
+                state: 'success',
+                description: 'Security update — no cooldown required',
+                context: 'dependency-cooldown',
+              });
+              console.log(`PR #${pr.number}: security update (${alertState}) — auto-pass`);
               return;
             }
 
