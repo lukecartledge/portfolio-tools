@@ -23,6 +23,19 @@ updates:
           - 'prettier'
           - 'tsx'
           - '@types/*'
+      linting:
+        patterns:
+          - 'eslint'
+          - 'eslint-*'
+          - '@eslint/*'
+          - 'typescript-eslint'
+      testing:
+        patterns:
+          - 'vitest'
+      hono:
+        patterns:
+          - 'hono'
+          - '@hono/*'
 
   - package-ecosystem: github-actions
     directory: /
@@ -32,3 +45,7 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
+    groups:
+      github-actions:
+        patterns:
+          - '*'
