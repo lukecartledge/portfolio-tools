@@ -48,7 +48,7 @@ function makeConfig(): Config {
       managementToken: 'token',
     },
     anthropic: { apiKey: 'key' },
-  } as Config
+  }
 }
 
 function makeSidecar(overrides?: Partial<Sidecar>): Sidecar {
