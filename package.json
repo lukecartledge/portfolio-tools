@@ -21,7 +21,7 @@
     "@anthropic-ai/sdk": "^0.122.0",
     "@clack/prompts": "^1.2.0",
     "@hono/node-server": "^2.0.12",
-    "chokidar": "^5.0.0",
+    "chokidar": "^6.0.0",
     "contentful-management": "^12.15.0",
     "dotenv": "^17.4.2",
     "exifr": "^7.1.3",
